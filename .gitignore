@@ -1,0 +1,46 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+
+# Virtual environment
+.venv/
+venv/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# VS Code
+.vscode/
+
+# Environment variables
+.env
+.env.*
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Python packaging / build
+build/
+dist/
+*.egg-info/
+
+# Logs
+*.log
+
+# Coverage / pytest
+.coverage
+htmlcov/
+.pytest_cache/
+
+# MLflow local artifacts
+mlruns/
+
+# Streamlit
+.streamlit/secrets.toml
+
+# Temporary files
+tmp/
+temp/

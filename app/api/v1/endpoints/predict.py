@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from fastapi import APIRouter, HTTPException
 
 from app.schemas.prediction import PredictionInput, PredictionOutput
@@ -9,12 +11,12 @@ router = APIRouter()
 @router.post("/predict", response_model=PredictionOutput)
 def predict(data: PredictionInput) -> PredictionOutput:
     try:
-        result = get_prediction(
-            age=data.age,
-            monthly_income=data.monthly_income,
-            job_level=data.job_level
-        )
-        return result
-
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        result = get_prediction(data.model_dump())
+        return PredictionOutput(**result)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Erreur interne lors de la prédiction : {exc}",
+        ) from exc

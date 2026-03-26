@@ -1,0 +1,86 @@
+artifact_path: file:///C:/Users/kevin/Documents/Projet_5/p5-employee-attrition-api/mlruns/1/models/m-14206d401d724247968c3caab2b46fd9/artifacts
+flavors:
+  python_function:
+    env:
+      conda: conda.yaml
+      virtualenv: python_env.yaml
+    loader_module: mlflow.sklearn
+    model_path: model.pkl
+    predict_fn: predict
+    python_version: 3.11.14
+  sklearn:
+    code: null
+    pickled_model: model.pkl
+    serialization_format: cloudpickle
+    sklearn_version: 1.8.0
+    skops_trusted_types: null
+is_signature_from_type_hint: false
+mlflow_version: 3.10.1
+model_id: m-14206d401d724247968c3caab2b46fd9
+model_size_bytes: 12567
+model_uuid: m-14206d401d724247968c3caab2b46fd9
+prompts: null
+run_id: 28aea7d2c29e4763bdd80a50eecd1bf3
+saved_input_example_info:
+  artifact_path: input_example.json
+  pandas_orient: split
+  serving_input_path: serving_input_example.json
+  type: dataframe
+signature:
+  inputs: '[{"type": "long", "name": "age", "required": true}, {"type": "long", "name":
+    "genre", "required": true}, {"type": "long", "name": "nombre_experiences_precedentes",
+    "required": true}, {"type": "long", "name": "satisfaction_employee_environnement",
+    "required": true}, {"type": "long", "name": "note_evaluation_precedente", "required":
+    true}, {"type": "long", "name": "niveau_hierarchique_poste", "required": true},
+    {"type": "long", "name": "satisfaction_employee_nature_travail", "required": true},
+    {"type": "long", "name": "satisfaction_employee_equipe", "required": true}, {"type":
+    "long", "name": "satisfaction_employee_equilibre_pro_perso", "required": true},
+    {"type": "long", "name": "note_evaluation_actuelle", "required": true}, {"type":
+    "long", "name": "heure_supplementaires", "required": true}, {"type": "double",
+    "name": "augementation_salaire_precedente", "required": true}, {"type": "long",
+    "name": "nombre_participation_pee", "required": true}, {"type": "long", "name":
+    "nb_formations_suivies", "required": true}, {"type": "long", "name": "distance_domicile_travail",
+    "required": true}, {"type": "long", "name": "niveau_education", "required": true},
+    {"type": "double", "name": "revenu_mensuel_log", "required": true}, {"type": "double",
+    "name": "annee_experience_totale_log", "required": true}, {"type": "double", "name":
+    "annees_dans_l_entreprise_log", "required": true}, {"type": "double", "name":
+    "annees_dans_le_poste_actuel_log", "required": true}, {"type": "double", "name":
+    "annees_depuis_la_derniere_promotion_log", "required": true}, {"type": "double",
+    "name": "annes_sous_responsable_actuel_log", "required": true}, {"type": "long",
+    "name": "distance_domicile_travail_classe", "required": true}, {"type": "double",
+    "name": "ratio_anciennete_poste", "required": true}, {"type": "double", "name":
+    "ratio_anciennete_manager", "required": true}, {"type": "double", "name": "ratio_experience_entreprise",
+    "required": true}, {"type": "long", "name": "mobilite_interne_potentielle", "required":
+    true}, {"type": "long", "name": "jamais_promu", "required": true}, {"type": "double",
+    "name": "retard_promotion_relatif", "required": true}, {"type": "long", "name":
+    "progression_salariale_faible", "required": true}, {"type": "double", "name":
+    "mediane_revenu_par_niveau", "required": true}, {"type": "double", "name": "revenu_par_niveau",
+    "required": true}, {"type": "long", "name": "sous_remunere_niveau", "required":
+    true}, {"type": "double", "name": "mediane_revenu_par_poste", "required": true},
+    {"type": "double", "name": "revenu_par_poste", "required": true}, {"type": "long",
+    "name": "evolution_evaluation", "required": true}, {"type": "long", "name": "bonne_perf_peu_augmente",
+    "required": true}, {"type": "double", "name": "statut_marital_C\u00e9libataire",
+    "required": true}, {"type": "double", "name": "statut_marital_Divorc\u00e9(e)",
+    "required": true}, {"type": "double", "name": "statut_marital_Mari\u00e9(e)",
+    "required": true}, {"type": "double", "name": "departement_Commercial", "required":
+    true}, {"type": "double", "name": "departement_Consulting", "required": true},
+    {"type": "double", "name": "departement_Ressources Humaines", "required": true},
+    {"type": "double", "name": "frequence_deplacement_Aucun", "required": true}, {"type":
+    "double", "name": "frequence_deplacement_Frequent", "required": true}, {"type":
+    "double", "name": "frequence_deplacement_Occasionnel", "required": true}, {"type":
+    "double", "name": "poste_regroupe_Assistant de Direction", "required": true},
+    {"type": "double", "name": "poste_regroupe_Autre", "required": true}, {"type":
+    "double", "name": "poste_regroupe_Cadre Commercial", "required": true}, {"type":
+    "double", "name": "poste_regroupe_Consultant", "required": true}, {"type": "double",
+    "name": "poste_regroupe_Manager", "required": true}, {"type": "double", "name":
+    "poste_regroupe_Senior Manager", "required": true}, {"type": "double", "name":
+    "poste_regroupe_Tech Lead", "required": true}, {"type": "double", "name": "domaine_etude_regroupe_Autre",
+    "required": true}, {"type": "double", "name": "domaine_etude_regroupe_Entrepreunariat",
+    "required": true}, {"type": "double", "name": "domaine_etude_regroupe_Infra &
+    Cloud", "required": true}, {"type": "double", "name": "domaine_etude_regroupe_Marketing",
+    "required": true}, {"type": "double", "name": "domaine_etude_regroupe_Transformation
+    Digitale", "required": true}]'
+  outputs: '[{"type": "tensor", "tensor-spec": {"dtype": "float64", "shape": [-1]}}]'
+  params: null
+type_hint_from_example: false
+utc_time_created: '2026-03-26 12:57:46.824768'

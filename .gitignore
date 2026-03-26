@@ -44,3 +44,6 @@ mlruns/
 # Temporary files
 tmp/
 temp/
+
+# Local databases
+*.db

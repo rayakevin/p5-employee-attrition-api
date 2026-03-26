@@ -1,373 +1,1254 @@
-# Projet P5 - Trace Detaillee du Travail Realise dans Cette Discussion
+# Projet P5 - Mode Operatoire Complet et Retour d'Experience
 
 ## 1. Objet du document
 
-Ce document retrace, de maniere detaillee, le travail effectivement realise sur le projet P5 dans cette discussion. Il s'appuie sur :
+Ce document est concu comme un mode operatoire reutilisable. L'idee n'est pas seulement de retracer ce qui a ete fait sur ce projet P5, mais d'en faire un guide pratique que l'on peut rouvrir plus tard pour remettre en production un autre modele de machine learning avec la meme logique de travail.
 
-- le referentiel pedagogique du projet P5 contenu dans le document principal de 140 pages ;
-- l'etat reel du repository au moment de l'intervention ;
-- les commandes lancees dans le terminal ;
-- les fichiers consultes, modifies ou crees pendant la seance ;
-- les erreurs reproduites puis resolues.
+Le document s'appuie sur :
 
-Le but est double :
+- le guide P5 ;
+- l'etat reel du repository ;
+- l'historique Git ;
+- les erreurs effectivement rencontrees pendant le travail.
 
-- documenter techniquement les manipulations realisees ;
-- expliquer pourquoi chaque etape a ete faite de cette maniere, afin qu'un lecteur comprenne la logique de resolution et le role de chaque outil.
+Il doit permettre de repondre a trois besoins :
 
-Important : ce document couvre strictement le travail visible dans cette discussion. Il ne pretend pas reconstituer des actions anterieures qui n'apparaissent ni dans le thread ni dans le workspace courant.
+1. Comprendre quoi faire, dans quel ordre, pour monter un projet similaire.
+2. Comprendre pourquoi on fait les choses comme cela.
+3. Anticiper les erreurs classiques, y compris celles que nous avons effectivement rencontrees.
 
-## 2. Contexte du projet
+## 2. Comment utiliser ce document plus tard
 
-Le projet P5 porte sur le deploiement d'un modele de machine learning dans une API exploitable, testable et maintenable. Dans le repository observe ici, le projet prend la forme d'une API FastAPI exposee sur un endpoint de prediction, avec :
+Ce document se lit comme un guide de mise en production progressif.
 
-- une couche de schemas Pydantic pour valider les donnees d'entree et de sortie ;
-- une couche de service pour orchestrer la prediction ;
-- une couche ML pour charger un modele MLflow, preparer les features, puis produire un score et une classe ;
-- une suite de tests unitaires Pytest.
+Pour chaque etape, on y trouve :
 
-Le point de depart de cette intervention etait un test qui ne passait pas, avec l'hypothese utilisateur que la cause etait liee a `scripts/export_model_to_mlflow.py`.
+- l'objectif ;
+- les commandes a lancer ;
+- les fichiers a creer ou modifier ;
+- l'explication des choix techniques ;
+- les points de controle ;
+- les erreurs rencontrees ou les pieges frequents.
 
-## 3. Strategie de travail suivie
+La logique recommandee est de suivre les etapes dans l'ordre, puis d'utiliser :
 
-La strategie adoptee a ete la suivante :
+- la section des erreurs pour le depannage ;
+- la section des outils en fin de document comme aide-memoire ;
+- la section d'ouverture pour envisager des variantes selon le type de modele ou de projet.
 
-1. Reproduire l'echec de test dans l'environnement reel.
-2. Identifier si l'echec venait effectivement du flux MLflow ou d'une autre couche.
-3. Corriger la cause immediate sans ecraser les modifications deja presentes dans le workspace.
-4. Relancer les tests pour detecter d'eventuels problemes masques.
-5. Stabiliser le pipeline complet : configuration, chargement du modele, preprocessing, et export MLflow.
+## 3. Vue d'ensemble du processus
 
-Cette approche est importante dans un projet de deploiement ML : un premier echec visible en masque souvent un autre. Si l'on corrige uniquement le symptome sans reexecuter la chaine complete, on risque de laisser plusieurs regressions non detectees.
+Le processus global de mise en production suivi ici est le suivant :
 
-## 4. Inventaire des commandes lancees
+1. Initialiser le projet et poser les conventions Git.
+2. Structurer l'arborescence et l'environnement Python.
+3. Mettre en place l'automatisation minimale CI/CD.
+4. Construire l'API FastAPI avec validation des entrees.
+5. Exporter le modele avec MLflow et le rendre exploitable par l'API.
+6. Corriger les problemes de chargement, de preprocessing et de typage.
+7. Documenter le projet et formaliser les actions.
+8. Poser la couche base de donnees et preparer la tracabilite.
+9. Brancher ensuite la persistance dans les endpoints.
+10. Ajouter des tests d'integration sur le flux complet et sur le seed.
+11. Charger les donnees source dans la base pour preparer la vraie couche PostgreSQL.
 
-Cette section recense les commandes executees pendant la discussion, avec leur objectif.
+Sur ce projet, l'ordre reel des etapes a ete :
 
-### 4.1 Inspection initiale du repository
+- etapes 1, 2, 3, 4 ;
+- puis 6 et 7 ;
+- puis 5 ;
+- puis debut de l'etape base de donnees et tracabilite.
 
-Commande :
+Cette difference est importante : en pratique, l'ordre reel d'un projet n'est pas toujours parfaitement lineaire. Il faut donc savoir revenir en arriere, corriger, stabiliser, puis reprendre la feuille de route.
+
+## 4. Etape 1 - Initialiser le repository et definir les conventions
+
+### Objectif
+
+Partir d'un depot propre, lisible et professionnel.
+
+### Commandes a lancer
 
 ```powershell
-git status --short
+git clone https://github.com/<ton-compte>/p5-attrition-mlops-api.git
+cd p5-attrition-mlops-api
+code .
 ```
 
-Objectif :
+### Pourquoi ces commandes
 
-- verifier l'etat du workspace avant de toucher au code ;
-- identifier les fichiers deja modifies par l'utilisateur ou par des scripts ;
-- eviter d'ecraser des changements non lies a l'intervention.
+- `git clone` recupere le depot localement.
+- `cd` positionne le shell dans le projet.
+- `code .` ouvre le projet dans VS Code, qui est pratique pour Python, Git, YAML, Docker et GitHub.
 
-Pourquoi c'est important :
+### Conventions Git a adopter
 
-Dans un projet reel, on ne doit jamais partir du principe que le workspace est propre. Ici, cette commande a montre de nombreuses modifications et fichiers non suivis, notamment des artefacts MLflow et des donnees. Cela a conditionne la suite : toute correction devait etre strictement ciblee.
+Conventions de branches :
 
-Commande :
+- `feature/<sujet>`
+- `fix/<sujet>`
+- `docs/<sujet>`
+- `refactor/<sujet>`
+
+Convention de commits :
+
+- `chore:` pour l'initialisation et la maintenance
+- `ci:` pour la pipeline
+- `feat:` pour les fonctionnalites
+- `fix:` pour les corrections
+- `docs:` pour la documentation
+- `test:` pour les tests
+
+### Exemples reels observes dans le projet
+
+- `chore: initialize local project with uv and root configuration`
+- `ci: add GitHub Actions workflows and initial API tests`
+- `feat: implement prediction API with FastAPI and validation`
+- `feat: add MLflow model export, prediction assets and project documentation`
+
+### Point de controle
+
+Avant d'aller plus loin, verifier :
+
+- que le depot est bien clone ;
+- que Git fonctionne ;
+- que l'historique est lisible ;
+- que la branche `main` existe ;
+- que le workflow par branches sera respecte.
+
+### Erreurs ou pieges frequents
+
+- travailler directement sur `main` ;
+- faire des commits vagues du type `update` ;
+- ne pas definir les conventions des le depart.
+
+## 5. Etape 2 - Initialiser l'environnement Python et l'arborescence
+
+### Objectif
+
+Disposer d'un environnement reproductible et d'une structure claire avant d'ecrire de vrai code metier.
+
+### Commandes a lancer
 
 ```powershell
-rg --files
+uv init
+uv venv
+.venv\Scripts\Activate.ps1
+uv add fastapi uvicorn pydantic pydantic-settings sqlalchemy psycopg[binary] mlflow scikit-learn pandas numpy joblib python-dotenv pytest pytest-cov httpx mkdocs mkdocs-material streamlit
+uv export --format requirements-txt > requirements.txt
+mkdir -p .github/workflows app/api/v1/endpoints app/core app/db app/ml app/services scripts tests/unit tests/integration tests/functional docs ui data/raw data/processed data/samples artifacts/model artifacts/reports
 ```
 
-Objectif :
+### Pourquoi ces commandes
 
-- obtenir rapidement l'arborescence des fichiers utiles ;
-- localiser les scripts, modules ML, tests et artefacts.
+- `uv init` initialise le projet Python moderne.
+- `uv venv` cree l'environnement virtuel.
+- l'activation `.venv\Scripts\Activate.ps1` permet d'utiliser l'environnement en local.
+- `uv add ...` installe toute la pile attendue pour le projet P5.
+- `uv export ...` produit un `requirements.txt`, souvent demande explicitement.
+- `mkdir -p ...` force une architecture claire des le depart.
 
-Pourquoi `rg` :
+### Fichiers structurants a obtenir
 
-`rg` est plus rapide et plus pratique que des alternatives plus verbeuses pour cartographier un repo.
+- `pyproject.toml`
+- `requirements.txt`
+- `.gitignore`
+- `.dockerignore`
+- `README.md`
+- arborescence `app/`, `scripts/`, `tests/`, `docs/`, `ui/`, `data/`, `artifacts/`
 
-### 4.2 Reproduction du probleme
+### Pourquoi l'arborescence compte autant
 
-Commande :
+Quand on repousse la structuration du projet, on finit souvent avec :
+
+- du code metier melange a du code d'infrastructure ;
+- des scripts difficiles a retrouver ;
+- une documentation mal rangee ;
+- un depot peu lisible pour un evaluateur ou un recruteur.
+
+### Point de controle
+
+Avant de continuer, verifier :
+
+- que `pyproject.toml` contient bien les dependances ;
+- que `requirements.txt` existe ;
+- que l'environnement virtuel est fonctionnel ;
+- que les dossiers principaux sont crees.
+
+### Commits de reference observes
+
+- `2238dde` `chore: initialize local project with uv and root configuration`
+- `f0455fd` `chore: pin python version to 3.11 and stabilize project setup`
+- `a409451` `chore: create project architecture and initialized uv project structure`
+
+## 6. Etape 3 - Mettre en place CI/CD et le workflow de branches
+
+### Objectif
+
+Automatiser les verifications de base et imposer un workflow Git propre.
+
+### Commandes a lancer
+
+```powershell
+git switch -c feature/ci-cd
+```
+
+### Fichiers a creer ou completer
+
+- `.github/workflows/ci.yml`
+- `.github/workflows/cd.yml`
+- `.github/pull_request_template.md`
+
+### Pourquoi cette etape arrive tot
+
+Le guide insiste sur un point important : la tuyauterie CI/CD doit etre posee avant que le projet grossisse trop. Sinon :
+
+- les tests arrivent trop tard ;
+- les workflows sont ajoutes en urgence ;
+- la qualite devient reactive au lieu d'etre preventive.
+
+### Ce qui a ete observe dans le repository
+
+Commits visibles :
+
+- `a454aee` `ci: add GitHub Actions workflows and initial API tests`
+- `d1e3d89` `ci: fix invalid GitHub Actions workflow definition`
+- `cb566df` `ci: fix cd workflow with valid job placeholder`
+- `46efde1` `ci: remove windows-specific dependency from requirements`
+- `003e3ff` merge PR `feature/ci-cd`
+
+### Ce qu'il faut retenir
+
+Une pipeline n'est jamais parfaite du premier coup. Il est normal d'avoir des commits correctifs sur CI/CD. Ce qui compte, c'est :
+
+- d'isoler ces corrections dans des commits clairs ;
+- de ne pas les cacher dans un commit applicatif ;
+- de conserver un historique explicite.
+
+### Points de controle
+
+- le workflow CI lance bien les tests ;
+- le workflow CD est au moins structure ;
+- la PR template existe ;
+- les branches suivent la convention.
+
+## 7. Etape 4 - Construire l'API FastAPI
+
+### Objectif
+
+Exposer un service de prediction lisible, documente et testable.
+
+### Commande de depart
+
+```powershell
+git switch -c feature/api-fastapi
+```
+
+### Fichiers structurant l'API
+
+- `app/main.py` ; voir [Annexe A](#annexe-a---appmainpy)
+- `app/api/v1/router.py` ; voir [Annexe B](#annexe-b---appapiv1routerpy)
+- `app/api/v1/endpoints/predict.py` ; voir [Annexe C](#annexe-c---appapiv1endpointspredictpy)
+- `app/services/prediction_service.py` ; voir [Annexe E](#annexe-e---appservicesprediction_servicepy)
+- `app/schemas/prediction.py` ; voir [Annexe D](#annexe-d---appschemaspredictionpy)
+- `tests/unit/test_app.py`
+- `tests/unit/test_predict.py`
+
+### Logique de mise en oeuvre
+
+#### `app/main.py`
+
+Ce fichier doit rester simple. Son role est de :
+
+- creer l'application FastAPI ;
+- declarer le titre, la version et la description ;
+- inclure les routes versionnees.
+
+Pourquoi :
+
+- plus `main.py` reste mince, plus l'application est lisible ;
+- l'intelligence metier doit etre ailleurs.
+
+#### `app/api/v1/endpoints/predict.py`
+
+Ce fichier porte la responsabilite HTTP :
+
+- recevoir le payload ;
+- appeler le service ;
+- transformer le resultat en reponse de schema ;
+- gerer les erreurs avec des codes adaptes.
+
+Pourquoi :
+
+- on separe l'API du metier ;
+- cela rend les tests plus simples.
+
+#### `app/services/prediction_service.py`
+
+Ce fichier orchestre :
+
+- la preparation des features ;
+- l'appel au modele.
+
+Pourquoi :
+
+- c'est la bonne couche pour brancher plus tard la persistance en base ;
+- cela evite de surcharger le endpoint.
+
+#### `app/schemas/prediction.py`
+
+Ce fichier valide les entrees et sorties.
+
+Pourquoi :
+
+- le contrat d'API doit etre explicite ;
+- les schemas deviennent aussi la base de la doc Swagger.
+
+### Commit de reference observe
+
+- `88426a5` `feat: implement prediction API with FastAPI and validation`
+
+### Point de controle
+
+Avant de passer a MLflow, il faut verifier :
+
+- que l'API demarre ;
+- que `/health` repond ;
+- que `/predict` existe ;
+- que les schemas sont stricts ;
+- que les tests unitaires de base existent.
+
+## 8. Etape 5 - Exporter le modele avec MLflow et le rendre exploitable
+
+### Objectif
+
+Passer d'un modele du P4 a un artefact versionnable, chargeable et exploitable dans l'API.
+
+### Fichier cle
+
+- `scripts/export_model_to_mlflow.py` ; voir [Annexe J](#annexe-j---scriptsexport_model_to_mlflowpy)
+
+### Ce que ce script doit faire
+
+1. Charger les donnees d'entrainement.
+2. Reconstituer `X` et `y`.
+3. Construire le pipeline de modele.
+4. Entrainer le modele.
+5. Inferer la signature d'entree/sortie.
+6. Logger le modele dans MLflow.
+7. Recuperer l'artefact exporte.
+8. Le stabiliser dans `artifacts/model/current`.
+9. Produire une metadata locale exploitable par l'API.
+
+### Pourquoi MLflow est utile ici
+
+MLflow ne sert pas uniquement a stocker un `pkl`. Il apporte :
+
+- une signature de modele ;
+- un environnement Python associe ;
+- une structure d'artefact standard ;
+- une meilleure lisibilite du packaging.
+
+### Artefacts obtenus
+
+Dans `artifacts/model/`, on retrouve notamment :
+
+- `MLmodel`
+- `model.pkl`
+- `metadata.json`
+- `requirements.txt`
+- `python_env.yaml`
+- `conda.yaml`
+- `input_example.json`
+- `serving_input_example.json`
+- `preprocessing_reference.json`
+
+### Pourquoi `metadata.json` est important
+
+Ce fichier sert de pont entre :
+
+- le monde MLflow ;
+- et le monde applicatif de l'API.
+
+Il y stocke par exemple :
+
+- le nom du modele ;
+- sa version ;
+- le seuil de decision ;
+- la liste des features ;
+- le chemin local vers l'artefact.
+
+### Commit de reference observe
+
+- `43ebe7d` `feat: add MLflow model export, prediction assets and project documentation`
+
+## 9. Etape 6 - Brancher le modele a l'API et corriger les erreurs reelles
+
+Cette etape a ete particulierement importante, car elle montre ce qui se passe en pratique quand on branche un modele a une API : les erreurs ne sont pas seulement dans le modele, elles sont souvent dans le contrat entre toutes les couches.
+
+### 9.1 Reproduire le probleme
+
+Commandes executees :
 
 ```powershell
 pytest -q
+uv run pytest -q
+uv run pytest tests/unit/test_predict.py -q -s
 ```
 
-Resultat :
+Pourquoi :
 
-- echec immediat car `pytest` n'etait pas disponible sur le `PATH`.
+- il fallait partir du symptome reel, pas d'une supposition.
 
-Interet :
+### 9.2 Erreur 1 : `pytest` non reconnu
 
-- cela a permis d'identifier que l'environnement ne devait pas etre utilise via le binaire global, mais via l'environnement du projet.
+Symptome :
 
-Commande :
+- `pytest -q` ne fonctionne pas.
+
+Cause :
+
+- l'environnement du projet n'etait pas utilise.
+
+Resolution :
+
+- utiliser `uv run pytest -q`.
+
+### 9.3 Erreur 2 : la configuration absorbe `DEBUG=release`
+
+Symptome :
+
+- les tests ne demarrent pas ;
+- `Settings()` echoue car `debug` recoit une valeur non interpretable en booleen.
+
+Cause :
+
+- la machine possedait une variable globale `DEBUG=release` ;
+- le projet lisait trop largement l'environnement.
+
+Resolution :
+
+- ajout de `env_prefix="P5_"` dans `app/core/config.py` ; voir [Annexe F](#annexe-f---appcoreconfigpy).
+
+Pourquoi cette correction est propre :
+
+- elle isole la configuration du projet ;
+- elle evite les collisions avec l'environnement du poste de travail.
+
+### 9.4 Erreur 3 : modele MLflow introuvable
+
+Symptome :
+
+- `/predict` renvoie 500 ;
+- la metadata pointe vers `artifacts/model/current`, mais le dossier reel n'est pas conforme.
+
+Cause :
+
+- le script d'export et le loader ne partageaient plus la meme convention de stockage.
+
+Resolution :
+
+- rendre `app/ml/loader.py` tolerant ; voir [Annexe G](#annexe-g---appmlloaderpy)
+- ajouter une resolution de chemin robuste ;
+- corriger en parallele `scripts/export_model_to_mlflow.py` pour rendre l'export plus deterministe ; voir [Annexe J](#annexe-j---scriptsexport_model_to_mlflowpy).
+
+### 9.5 Erreur 4 : incompatibilite de type sur `genre`
+
+Symptome :
+
+- le modele refuse la colonne `genre`.
+
+Cause :
+
+- l'API envoyait `Male` ou `Female` ;
+- le modele attendait `0` ou `1`.
+
+Resolution :
+
+- ajout d'une normalisation explicite dans `app/ml/preprocess.py` ; voir [Annexe I](#annexe-i---appmlpreprocesspy).
+
+### 9.6 Erreur 5 : incompatibilites de types numeriques
+
+Symptome :
+
+- certaines colonnes numeriques du payload ne matchent pas le schema MLflow.
+
+Cause :
+
+- les dtypes reels du dataset modele n'etaient pas reconstitues a l'identique.
+
+Resolution :
+
+- inspection explicite des types dans `df_MODEL.csv` ;
+- cast final du DataFrame genere pour aligner les colonnes sur les types attendus ; voir [Annexe I](#annexe-i---appmlpreprocesspy).
+
+### 9.7 Pourquoi cette etape est la plus formatrice
+
+Elle montre que mettre un modele en production, ce n'est pas seulement "appeler `predict()`". Il faut aligner :
+
+- le schema du payload API ;
+- le preprocessing ;
+- la metadata de modele ;
+- les artefacts MLflow ;
+- les types de colonnes ;
+- la configuration runtime.
+
+## 10. Etape 7 - Documenter, tester avant commit et committer proprement
+
+### Objectif
+
+Stabiliser l'etat du projet, produire une trace claire, puis committer avec un message conforme aux conventions.
+
+### Commandes executees
+
+```powershell
+uv run pytest -q
+git status --short
+git diff --cached --stat
+git commit -m "feat: add MLflow model export, prediction assets and project documentation"
+```
+
+### Pourquoi ces commandes
+
+- `uv run pytest -q` est le minimum a executer avant commit ;
+- `git status --short` permet de voir l'etat indexe ;
+- `git diff --cached --stat` permet de verifier le perimetre reel du commit ;
+- `git commit -m ...` cree un commit explicite et lisible.
+
+### Pourquoi le message de commit est important
+
+Un bon message :
+
+- dit ce qu'on a ajoute ;
+- reste coherént avec l'historique ;
+- facilite la lecture future du projet ;
+- prepare des PR plus claires.
+
+### Point de controle
+
+Avant commit :
+
+- les tests passent ;
+- on comprend ce qu'on commit ;
+- le message est propre ;
+- le commit ne melange pas plusieurs sujets sans lien.
+
+## 11. Etape 8 - Poser la couche base de donnees et la tracabilite
+
+### Objectif
+
+Preparer la persistance des requetes et des resultats de prediction, sans encore casser le flux existant.
+
+### Premiere decision importante : comment gerer les secrets
+
+Question soulevee :
+
+- comment gerer les mots de passe et informations sensibles comme l'URL de base ?
+
+Decision prise :
+
+- ne jamais ecrire d'identifiants en dur dans le code ;
+- stocker l'URL de connexion dans `P5_DATABASE_URL` ;
+- utiliser une valeur par defaut locale non sensible pour le travail initial, ici une base SQLite locale ;
+- ne jamais logger la chaine complete de connexion.
+
+Pourquoi ce choix est bon :
+
+- il respecte les bonnes pratiques ;
+- il reste simple a expliquer ;
+- il prepare la transition future vers PostgreSQL sans introduire de secret dans Git.
+
+### Commande de depart
+
+```powershell
+git switch -c feature/postgres-tracking
+```
+
+### Fichiers a creer ou modifier
+
+- `app/core/config.py` ; voir [Annexe F](#annexe-f---appcoreconfigpy)
+- `app/db/base.py` ; voir [Annexe K](#annexe-k---appdbbasepy)
+- `app/db/session.py` ; voir [Annexe L](#annexe-l---appdbsessionpy)
+- `app/db/models/tracking.py` ; voir [Annexe M](#annexe-m---appdbmodelstrackingpy)
+- `app/db/models/__init__.py`
+- `scripts/create_db.py` ; voir [Annexe N](#annexe-n---scriptscreate_dbpy)
+
+### Role de chaque fichier
+
+#### `app/core/config.py`
+
+But :
+
+- ajouter `database_url`.
+
+Pourquoi :
+
+- la base doit etre configurable par environnement ;
+- la valeur ne doit pas etre codee en dur ailleurs.
+
+#### `app/db/base.py`
+
+But :
+
+- definir la base declarative SQLAlchemy.
+
+Pourquoi :
+
+- tous les modeles ORM doivent partager la meme `metadata`.
+
+#### `app/db/session.py`
+
+But :
+
+- creer l'engine SQLAlchemy ;
+- definir `SessionLocal` ;
+- preparer `get_db()`.
+
+Pourquoi :
+
+- on centralise la connexion et la creation de sessions ;
+- on prepare l'injection future dans FastAPI.
+
+#### `app/db/models/tracking.py`
+
+But :
+
+- definir les tables :
+  - `prediction_requests`
+  - `prediction_results`
+  - `api_audit_logs`
+
+Pourquoi :
+
+- tracer la requete ;
+- tracer le resultat produit ;
+- tracer les evenements techniques.
+
+#### `scripts/create_db.py`
+
+But :
+
+- creer physiquement les tables a partir des modeles SQLAlchemy.
+
+### Commande de verification
+
+```powershell
+uv run python scripts/create_db.py
+```
+
+### Erreur reelle rencontree
+
+Symptome :
+
+- `ModuleNotFoundError: No module named 'app'`
+
+Cause :
+
+- le script est lance depuis `scripts/` et ne retrouve pas automatiquement la racine du projet.
+
+Resolution :
+
+- ajout d'un bootstrap `PROJECT_ROOT` dans `sys.path`.
+
+### Verification de non-regression
+
+Commande executee :
 
 ```powershell
 uv run pytest -q
 ```
 
-Objectif :
+Resultat :
 
-- executer Pytest dans l'environnement gere par `uv`, en utilisant les dependances declarees dans le projet.
+- les 5 tests existants passent encore.
 
-Pourquoi `uv run` :
+### Ce qu'il reste a faire juste apres
 
-- garantit l'utilisation de l'environnement du projet ;
-- evite les problemes de versions Python ou de packages systeme ;
-- est coherent avec un workflow de projet reproductible.
+- brancher effectivement la base dans `/predict` ;
+- enregistrer une ligne dans `prediction_requests` ;
+- enregistrer une ligne dans `prediction_results` ;
+- enregistrer les erreurs techniques dans `api_audit_logs` ;
+- ajouter les tests d'integration associes.
 
-### 4.3 Lecture des fichiers lies au probleme
+## 12. Liste de controle reutilisable avant mise en production d'un autre modele
 
-Commandes de consultation :
+Quand tu reutiliseras ce guide plus tard, voici l'ordre court a suivre :
 
-```powershell
-Get-Content scripts\export_model_to_mlflow.py
-Get-Content app\ml\loader.py
-Get-Content pyproject.toml
-Get-Content tests\unit\test_predict.py
-Get-Content app\core\config.py
-Get-Content tests\unit\test_config.py
-Get-Content app\main.py
-Get-Content app\api\v1\endpoints\predict.py
-Get-Content app\services\prediction_service.py
-Get-Content app\ml\predictor.py
-Get-Content app\ml\preprocess.py
-Get-Content artifacts\model\metadata.json
-Get-ChildItem -Recurse artifacts\model | Select-Object FullName
-Get-Content artifacts\model\MLmodel
-Get-Content app\schemas\prediction.py
-Get-Content artifacts\model\preprocessing_reference.json
-```
+1. Initialiser le repo et les conventions Git.
+2. Initialiser `uv`, l'environnement virtuel et l'arborescence.
+3. Poser CI/CD tres tot.
+4. Construire une API mince et bien validee.
+5. Exporter le modele dans un format standard, ici MLflow.
+6. Verifier la coherence entre payload API, preprocessing et schema du modele.
+7. Ecrire des tests simples puis relancer les tests apres chaque bloc.
+8. Documenter ce qui est fait avant d'oublier.
+9. Poser la couche de persistance et de tracabilite.
+10. Brancher la persistance seulement quand la structure ORM est propre.
 
-Objectif :
+## 13. Erreurs frequentes a anticiper sur un autre projet
 
-- comprendre la chaine complete allant du test HTTP jusqu'au modele MLflow ;
-- comparer le chemin attendu par le loader avec les artefacts reellement presents ;
-- verifier le schema d'entree du modele exporte ;
-- verifier la logique de preprocessing et les types attendus.
+### 13.1 Variables d'environnement parasites
 
-Pourquoi lire autant de fichiers :
+Exemple :
 
-Dans une application ML en production, le bug n'est presque jamais localise a un seul script. Ici, le test traversait :
+- `DEBUG`, `DATABASE_URL` ou `PORT` deja definies sur la machine.
 
-- les schemas d'entree ;
+Reflexe :
+
+- utiliser un prefixe projet ;
+- verifier la config des le debut.
+
+### 13.2 Drift entre entrainement et inference
+
+Exemple :
+
+- le notebook prepare les donnees d'une facon que l'API ne reproduit pas.
+
+Reflexe :
+
+- centraliser les mappings ;
+- preferer une pipeline serialisee la plus complete possible.
+
+### 13.3 Artefact de modele mal package
+
+Exemple :
+
+- le chemin de modele annonce n'est pas le bon ;
+- l'artefact ne contient pas tout ce qu'attend l'API.
+
+Reflexe :
+
+- verifier les artefacts juste apres export ;
+- ne pas supposer la structure des dossiers.
+
+### 13.4 Type mismatch en inference
+
+Exemple :
+
+- le payload est "logiquement correct" mais les types ne matchent pas le schema attendu.
+
+Reflexe :
+
+- verifier les dtypes reels du dataset d'entrainement ;
+- caster explicitement si necessaire.
+
+### 13.5 Script d'administration non executable
+
+Exemple :
+
+- un script comme `create_db.py` fonctionne dans l'IDE mais pas depuis le terminal.
+
+Reflexe :
+
+- le tester comme un vrai outil CLI des sa creation.
+
+## 14. Aide-memoire des outils utilises
+
+### 14.1 Git et GitHub
+
+A quoi ca sert ici :
+
+- versionner le code ;
+- travailler en branches ;
+- faire des PR ;
+- garder un historique lisible.
+
+Ce qu'on a utilise :
+
+- `git switch -c ...`
+- `git status`
+- `git log`
+- commits prefixees
+- merges de PR
+
+Ce qu'on pourrait reutiliser plus tard :
+
+- tags de release ;
+- protections de branches ;
+- templates d'issues ;
+- revues de code plus formalisees.
+
+### 14.2 uv
+
+A quoi ca sert ici :
+
+- initialiser le projet Python ;
+- gerer l'environnement ;
+- executer les commandes Python et Pytest dans le bon contexte.
+
+Ce qu'on a utilise :
+
+- `uv init`
+- `uv venv`
+- `uv add`
+- `uv run pytest`
+- `uv run python`
+
+### 14.3 FastAPI
+
+A quoi ca sert ici :
+
+- exposer l'API de prediction ;
+- documenter le contrat via Swagger/OpenAPI.
+
+Ce qu'on a utilise :
+
+- `FastAPI(...)`
+- router versionne ;
+- endpoint `/predict`
+- endpoint `/health`
+
+Ce qu'on n'a pas encore utilise mais qui peut servir :
+
+- middleware ;
+- securite par header ;
+- dependencies avancees ;
+- endpoints batch ;
+- endpoint `/model/info`.
+
+### 14.4 Pydantic et Pydantic Settings
+
+A quoi ca sert ici :
+
+- valider les payloads ;
+- typer les reponses ;
+- gerer la config par environnement.
+
+Ce qu'on a utilise :
+
+- `BaseModel`
+- `Field`
+- `field_validator`
+- `BaseSettings`
+- `SettingsConfigDict`
+
+### 14.5 scikit-learn
+
+A quoi ca sert ici :
+
+- construire la pipeline de prediction ;
+- standardiser les donnees ;
+- entrainer le classifieur.
+
+Ce qu'on a utilise :
+
+- `Pipeline`
+- `StandardScaler`
+- `LinearSVC`
+
+Ce qu'on pourrait utiliser plus tard :
+
+- `ColumnTransformer`
+- `OneHotEncoder`
+- `LogisticRegression`
+- calibration
+- model selection
+
+### 14.6 MLflow
+
+A quoi ca sert ici :
+
+- tracer le modele ;
+- emballer l'artefact ;
+- charger le modele proprement.
+
+Ce qu'on a utilise :
+
+- experiment
+- run
+- `log_model`
+- `infer_signature`
+- `download_artifacts`
+- `pyfunc.load_model`
+
+Ce qu'on pourrait utiliser plus tard :
+
+- registry distant ;
+- aliases ou stages ;
+- serving natif ;
+- comparaison d'experiences.
+
+### 14.7 Pandas
+
+A quoi ca sert ici :
+
+- lire les datasets ;
+- fabriquer le DataFrame de prediction ;
+- inspecter les types et les categories.
+
+Ce qu'on a utilise :
+
+- `read_csv`
+- `DataFrame`
+- `astype`
+
+### 14.8 SQLAlchemy
+
+A quoi ca sert ici :
+
+- decrire le schema ORM ;
+- centraliser la metadata ;
+- creer l'engine et les sessions.
+
+Ce qu'on a utilise :
+
+- `DeclarativeBase`
+- `create_engine`
+- `sessionmaker`
+- `Mapped`
+- `mapped_column`
+- `relationship`
+- `metadata.create_all`
+
+Ce qu'on pourrait utiliser plus tard :
+
+- Alembic ;
+- transactions metier plus poussees ;
+- requetes complexes ;
+- patterns repository.
+
+### 14.9 psycopg
+
+A quoi ca sert ici :
+
+- fournir le driver PostgreSQL cible pour SQLAlchemy.
+
+Ce qu'on a utilise :
+
+- la dependance `psycopg[binary]`
+- la compatibilite avec `postgresql+psycopg://...`
+
+### 14.10 Pytest
+
+A quoi ca sert ici :
+
+- tester l'application ;
+- verifier la non-regression.
+
+Ce qu'on a utilise :
+
+- tests unitaires
+- `TestClient`
+- execution globale
+- execution ciblee
+
+Ce qu'on pourrait utiliser plus tard :
+
+- tests d'integration base de donnees ;
+- couverture plus detaillee ;
+- parametrisation ;
+- fixtures plus riches.
+
+## 15. Ouvertures et variantes possibles
+
+### 15.1 Si le modele n'est pas un `LinearSVC`
+
+Pour un autre type de modele, la logique reste la meme :
+
+- pipeline ;
+- export ;
+- metadata ;
+- chargement ;
+- contrat d'API ;
+- tests ;
+- persistance.
+
+Ce qui change :
+
+- la maniere de calculer le score ;
+- la notion de probabilite ou non ;
+- les besoins d'explicabilite ;
+- les besoins de preprocessing.
+
+### 15.2 Si le modele inclut deja tout le preprocessing
+
+C'est souvent preferable :
+
+- moins de logique reimplementee dans l'API ;
+- moins de risque de divergence.
+
+### 15.3 Si le projet doit etre plus industriel
+
+On peut aller plus loin avec :
+
+- Docker strict ;
+- deploiement cloud ;
+- Alembic ;
+- observabilite ;
+- monitoring de derive ;
+- API securisee ;
+- registry de modele distant ;
+- separation API et UI en services distincts.
+
+### 15.4 Si le projet est plus simple
+
+Pour un projet moins ambitieux, on peut aussi simplifier :
+
+- pas de base au debut ;
+- pas de CI/CD complet ;
+- un seul endpoint ;
+- un seul script d'export ;
+- documentation minimale mais propre.
+
+L'important est de garder la logique de separation des responsabilites :
+
+- configuration ;
+- API ;
+- service ;
+- modele ;
+- persistence ;
+- tests ;
+- documentation.
+
+## 16. Conclusion
+
+Le projet P5 montre qu'une mise en production de modele n'est pas un simple emballage d'un notebook. Il faut construire un systeme coherent.
+
+Ce qui est deja stabilise :
+
+- la structure du projet ;
+- le workflow Git ;
 - la couche API ;
-- la couche service ;
-- la transformation des features ;
-- le chargement du modele ;
-- le modele MLflow lui-meme.
-
-Il fallait donc reconstruire la chaine complete pour corriger la vraie cause.
-
-### 4.4 Analyse de l'environnement et des donnees
-
-Commandes :
-
-```powershell
-Get-ChildItem -Force | Where-Object { $_.Name -like '.env*' } | Select-Object -ExpandProperty Name
-rg -n "settings\.debug|environment|app_name|Settings\(" app
-```
-
-Objectif :
-
-- verifier si une configuration locale `.env` expliquait l'echec des tests ;
-- verifier ou `settings` etait utilise dans l'application.
-
-Commandes d'analyse des donnees :
-
-```powershell
-uv run python -c "import pandas as pd; df=pd.read_csv('data/processed/df_MODEL.csv'); print(df.columns.tolist())"
-uv run python -c "import pandas as pd; df=pd.read_csv('data/processed/df_EDA.csv'); cols=[c for c in ['genre','statut_marital','departement','frequence_deplacement','poste','domaine_etude'] if c in df.columns]; print(df[cols].head().to_string()); print(); [print(c, sorted(df[c].dropna().astype(str).unique().tolist())[:20]) for c in cols]"
-uv run python -c "import pandas as pd; df=pd.read_csv('data/processed/df_MODEL.csv'); print(df[['genre']].head().to_string()); print(sorted(df['genre'].dropna().unique().tolist()))"
-uv run python -c "import pandas as pd; df=pd.read_csv('data/processed/df_MODEL.csv'); print(df.dtypes.to_string())"
-```
-
-Objectif :
-
-- verifier quelles colonnes etaient reelles dans le dataset modele ;
-- comprendre l'encodage de `genre` et des categories ;
-- recuperer les types exacts des features attendues par le modele exporte.
-
-Pourquoi ces commandes ont ete necessaires :
-
-Le modele MLflow ne juge pas seulement les noms de colonnes, il impose aussi un schema de types. Pour corriger proprement le preprocessing, il fallait repartir du dataset d'entrainement exporte, pas deviner les types "a l'intuition".
-
-### 4.5 Installation d'un outil pour lire le PDF
-
-Commande :
-
-```powershell
-python -m pip install --user pypdf
-```
-
-Objectif :
-
-- installer une bibliotheque PDF locale afin de lire le document de 140 pages fourni hors repo.
-
-Pourquoi cette installation a ete faite :
-
-- aucune bibliotheque PDF n'etait disponible par defaut ;
-- il fallait pouvoir extraire le texte pour lire le document integralement.
-
-Commandes preparatoires et de lecture :
-
-```powershell
-@'
-import importlib.util
-mods = ['PyPDF2', 'fitz', 'pdfplumber', 'pymupdf']
-for m in mods:
-    print(m, bool(importlib.util.find_spec(m)))
-'@ | python -
-```
-
-```powershell
-Get-Item 'C:\Users\kevin\Desktop\Formation IA engineer Openclassrooms - Projet 5 Déploiement ML.pdf' | Select-Object FullName,Length
-```
-
-Puis une lecture du PDF via Python et `pypdf` en iterant sur le dossier Desktop, afin d'eviter un probleme d'encodage sur le caractere accentue du nom de fichier.
-
-## 5. Chronologie des erreurs rencontrees et leur resolution
-
-### 5.1 Erreur 1 : `pytest` non reconnu
-
-Symptome :
-
-- la commande `pytest -q` echouait car `pytest` n'etait pas disponible comme commande globale.
-
-Cause :
-
-- l'environnement Python utilise pour le projet n'etait pas expose via le `PATH` global du shell.
-
-Resolution :
-
-- utilisation de `uv run pytest -q`.
-
-Explication :
-
-Dans un projet moderne, il est preferable d'utiliser l'environnement du projet plutot qu'un Python global. Cela reduit les ecarts entre machines et limite les erreurs de dependances.
-
-### 5.2 Erreur 2 : echec de collecte des tests dans la configuration
-
-Symptome :
-
-- Pytest ne demarrait pas les tests fonctionnels car l'import de `app.core.config` echouait ;
-- l'erreur indiquait que `debug` recevait la valeur `"release"`, non interpretable comme booleen.
-
-Cause :
-
-- `Settings()` lisait une variable d'environnement globale `DEBUG=release` de la machine ;
-- le projet n'avait pas de prefixe de variables d'environnement, donc il absorbait trop facilement des variables externes sans rapport.
-
-Resolution :
-
-- modification de `app/core/config.py` pour ajouter `env_prefix="P5_"`.
-
-Pourquoi cette correction est saine :
-
-- elle isole les variables d'environnement du projet ;
-- elle evite des conflits avec des variables generiques du poste de travail ;
-- elle est coherente avec les bonnes pratiques de deploiement.
-
-### 5.3 Erreur 3 : modele MLflow introuvable
-
-Symptome :
-
-- le test `/predict` renvoyait une erreur 500 avec un message indiquant que le modele etait introuvable a `artifacts/model/current`.
-
-Cause :
-
-- `metadata.json` pointait vers `artifacts/model/current` ;
-- mais les artefacts MLflow presents dans le repo se trouvaient directement dans `artifacts/model/`.
-
-Autrement dit :
-
-- le loader et l'export n'etaient plus alignes sur la meme convention de stockage.
-
-Resolution :
-
-- ajout d'une resolution de chemin robuste dans `app/ml/loader.py` ;
-- le loader essaye d'abord le chemin de la metadata, puis des emplacements de repli coherents (`artifacts/model` et `artifacts/model/current`) ;
-- la metadata chargee en memoire est ensuite synchronisee avec le chemin reel resolu.
-
-Pourquoi cette correction est utile :
-
-- elle rend le runtime plus tolerant a un artefact deja exporte sous une structure voisine ;
-- elle evite une panne de service pour une simple divergence de convention de dossier.
-
-### 5.4 Erreur 4 : incompatibilite du type de la colonne `genre`
-
-Symptome :
-
-- une fois le modele charge, MLflow rejetait l'entree car la colonne `genre` etait de type `object` alors que le modele attendait un `int64`.
-
-Cause :
-
-- le payload HTTP du test utilisait une valeur metier de type `"Male"` ;
-- le dataset d'entrainement, lui, contenait `genre` encode en `0` ou `1`.
-
-Resolution :
-
-- ajout d'une normalisation explicite de `genre` dans `app/ml/preprocess.py` ;
-- prise en charge de variantes telles que `Male`, `Female`, `M`, `F`, `Homme`, `Femme`.
-
-Pourquoi cette correction est importante :
-
-- elle reconnecte l'API metier a la representation attendue par le modele ;
-- elle evite de faire porter aux clients de l'API un format interne d'entrainement.
-
-### 5.5 Erreur 5 : incompatibilite de type sur `note_evaluation_precedente`
-
-Symptome :
-
-- apres correction de `genre`, MLflow rejetait encore l'entree car certaines colonnes numeriques etaient envoyees en `float64` alors que le modele attendait des `int64`.
-
-Cause :
-
-- le preprocessing construisait un DataFrame valide en apparence, mais non conforme au schema exact de types impose par MLflow ;
-- certaines valeurs fournies par le payload etaient des flottants, alors que le dataset d'entrainement avait stocke ces colonnes en entiers.
-
-Resolution :
-
-- ajout d'un cast explicite des colonnes finales dans `app/ml/preprocess.py` ;
-- separation entre features entieres et features flottantes ;
-- coercition du DataFrame final selon la realite du dataset modele.
-
-Pourquoi cette correction est la bonne :
-
-- elle s'aligne sur la source de verite, a savoir `df_MODEL.csv` et le schema exporte par MLflow ;
-- elle rend la prediction stable et reproductible.
-
-### 5.6 Probleme annexe : chemin PDF avec accent mal gere
-
-Symptome :
-
-- certaines tentatives d'ouverture du fichier PDF depuis Python echouaient a cause du nom du fichier contenant `Déploiement`.
-
-Cause :
-
-- probleme de transmission du chemin accentue entre le shell et Python dans ce contexte.
-
-Resolution :
-
-- iteration directe du contenu du dossier Desktop depuis Python ;
-- recuperation du bon objet `Path` sans reconstruire manuellement le chemin.
-
-Pourquoi cela merite d'etre note :
-
-- les problemes d'encodage de chemins Windows sont tres frequents ;
-- cela illustre qu'il vaut mieux souvent enumerer un repertoire que copier-coller un chemin encode de travers.
-
-## 6. Fichiers modifies ou crees
-
-### 6.1 `app/core/config.py`
-
-Role du fichier :
-
-- centraliser les parametres de configuration applicative via Pydantic Settings.
-
-Modification apportee :
+- le packaging MLflow ;
+- le preprocessing d'inference ;
+- les tests unitaires existants ;
+- la base ORM initiale pour la tracabilite.
+
+Ce qui a ete le plus instructif :
+
+- les erreurs sont venues de l'interface entre les couches ;
+- la configuration, le chemin d'artefact, le typage et le preprocessing sont aussi importants que le modele lui-meme ;
+- il faut documenter au fur et a mesure, sinon on oublie tres vite pourquoi certaines decisions ont ete prises.
+
+Si tu rouvres ce document dans 6 mois, la bonne facon de l'utiliser est simple :
+
+1. reprendre les etapes dans l'ordre ;
+2. relire la section erreurs avant de commencer ;
+3. utiliser le memo outils comme aide-memoire ;
+4. adapter la partie "ouvertures" au type de modele que tu devras deployer.
+
+Le prochain bloc logique sur ce projet est :
+
+- brancher la persistance SQLAlchemy a `/predict` ;
+- enregistrer les requetes, resultats et logs techniques ;
+- ajouter les tests d'integration qui valident cette tracabilite.
+
+## 17. Annexes code
+
+Cette annexe regroupe le code des fichiers qui portent la logique actuelle du projet. Les liens internes places dans les etapes precedentes pointent vers ces sections afin que, lors d'un export en PDF, on puisse naviguer directement du process vers le code concerne.
+
+### Table des annexes
+
+- [Annexe A - `app/main.py`](#annexe-a---appmainpy)
+- [Annexe B - `app/api/v1/router.py`](#annexe-b---appapiv1routerpy)
+- [Annexe C - `app/api/v1/endpoints/predict.py`](#annexe-c---appapiv1endpointspredictpy)
+- [Annexe D - `app/schemas/prediction.py`](#annexe-d---appschemaspredictionpy)
+- [Annexe E - `app/services/prediction_service.py`](#annexe-e---appservicesprediction_servicepy)
+- [Annexe F - `app/core/config.py`](#annexe-f---appcoreconfigpy)
+- [Annexe G - `app/ml/loader.py`](#annexe-g---appmlloaderpy)
+- [Annexe H - `app/ml/predictor.py`](#annexe-h---appmlpredictorpy)
+- [Annexe I - `app/ml/preprocess.py`](#annexe-i---appmlpreprocesspy)
+- [Annexe J - `scripts/export_model_to_mlflow.py`](#annexe-j---scriptsexport_model_to_mlflowpy)
+- [Annexe K - `app/db/base.py`](#annexe-k---appdbbasepy)
+- [Annexe L - `app/db/session.py`](#annexe-l---appdbsessionpy)
+- [Annexe M - `app/db/models/tracking.py`](#annexe-m---appdbmodelstrackingpy)
+- [Annexe N - `scripts/create_db.py`](#annexe-n---scriptscreate_dbpy)
+
+### Annexe A - `app/main.py`
 
 ```python
+"""Point d'entree principal de l'API FastAPI.
+
+Ce module instancie l'application, branche le routeur versionne et expose
+des endpoints simples de disponibilite. L'objectif est de garder ici un
+code tres mince : la logique HTTP complexe reste dans les endpoints, et la
+logique metier dans les services.
+"""
+
+from fastapi import FastAPI
+from app.api.v1.router import api_router
+
+app = FastAPI(
+    title="Employee Attrition Prediction API",
+    version="0.1.0",
+    description="API for employee attrition prediction"
+)
+
+app.include_router(api_router, prefix="/api/v1")
+
+
+@app.get("/")
+def root():
+    """Retourne un message simple pour verifier que l'application repond."""
+    return {"message": "API is running"}
+
+
+@app.get("/health")
+def health():
+    """Retourne un statut minimal de sante du service."""
+    return {"status": "ok"}
+```
+
+### Annexe B - `app/api/v1/router.py`
+
+```python
+"""Aggregation des routes de l'API versionnee.
+
+Ce module centralise l'enregistrement des endpoints de la version `v1`.
+Il permet de faire evoluer l'API par version sans melanger toutes les
+routes dans `main.py`.
+"""
+
+from fastapi import APIRouter
+from app.api.v1.endpoints import predict
+
+api_router = APIRouter()
+
+# Chaque sous-route apporte sa propre responsabilite metier.
+api_router.include_router(predict.router, tags=["Prediction"])
+```
+
+### Annexe C - `app/api/v1/endpoints/predict.py`
+
+```python
+from __future__ import annotations
+
+"""Endpoint HTTP de prediction.
+
+Ce module transforme un appel API en appel metier. Il valide l'entree via
+Pydantic, delegue la preparation des features et la prediction au service,
+puis reconstruit une reponse typee.
+"""
+
+from fastapi import APIRouter, HTTPException
+
+from app.schemas.prediction import PredictionInput, PredictionOutput
+from app.services.prediction_service import get_prediction
+
+router = APIRouter()
+
+
+@router.post("/predict", response_model=PredictionOutput)
+def predict(data: PredictionInput) -> PredictionOutput:
+    """Execute une prediction unitaire a partir d'un payload metier."""
+    try:
+        result = get_prediction(data.model_dump())
+        return PredictionOutput(**result)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Erreur interne lors de la prediction : {exc}",
+        ) from exc
+```
+
+### Annexe D - `app/schemas/prediction.py`
+
+```python
+from __future__ import annotations
+
+"""Schemas Pydantic de l'API de prediction."""
+
+from pydantic import BaseModel, Field, field_validator
+
+
+class PredictionInput(BaseModel):
+    """Decrit le payload metier attendu pour une prediction unitaire."""
+
+    age: int = Field(..., ge=16, le=100, description="Age de l'employe")
+    genre: str = Field(..., description="Genre de l'employe")
+    revenu_mensuel: float = Field(..., gt=0, description="Revenu mensuel brut")
+    statut_marital: str = Field(..., description="Statut marital")
+    departement: str = Field(..., description="Departement")
+    poste: str = Field(..., description="Poste")
+    nombre_experiences_precedentes: int = Field(..., ge=0, le=50)
+    nombre_heures_travailless: float = Field(..., ge=0, le=100)
+    annee_experience_totale: float = Field(..., ge=0, le=80)
+    annees_dans_l_entreprise: float = Field(..., ge=0, le=80)
+    annees_dans_le_poste_actuel: float = Field(..., ge=0, le=80)
+    satisfaction_employee_environnement: int = Field(..., ge=1, le=4)
+    note_evaluation_precedente: float = Field(..., ge=1, le=5)
+    niveau_hierarchique_poste: int = Field(..., ge=1, le=10)
+    satisfaction_employee_nature_travail: int = Field(..., ge=1, le=4)
+    satisfaction_employee_equipe: int = Field(..., ge=1, le=4)
+    satisfaction_employee_equilibre_pro_perso: int = Field(..., ge=1, le=4)
+    note_evaluation_actuelle: float = Field(..., ge=1, le=5)
+    heure_supplementaires: int = Field(..., ge=0, le=1)
+    augementation_salaire_precedente: float = Field(..., ge=0, le=100)
+    nombre_participation_pee: int = Field(..., ge=0, le=20)
+    nb_formations_suivies: int = Field(..., ge=0, le=50)
+    nombre_employee_sous_responsabilite: int = Field(..., ge=0, le=500)
+    distance_domicile_travail: float = Field(..., ge=0, le=500)
+    niveau_education: int = Field(..., ge=1, le=10)
+    domaine_etude: str = Field(..., description="Domaine d'etude")
+    ayant_enfants: int = Field(..., ge=0, le=1)
+    frequence_deplacement: str = Field(..., description="Frequence de deplacement")
+    annees_depuis_la_derniere_promotion: float = Field(..., ge=0, le=80)
+    annes_sous_responsable_actuel: float = Field(..., ge=0, le=80)
+    
+    @field_validator(
+        "genre",
+        "statut_marital",
+        "departement",
+        "poste",
+        "domaine_etude",
+        "frequence_deplacement",
+        mode="before",
+    )
+    @classmethod
+    def normalize_strings(cls, value: str) -> str:
+        """Nettoie les chaines metier avant validation approfondie."""
+        if not isinstance(value, str):
+            raise TypeError("La valeur doit etre une chaine de caracteres.")
+        value = value.strip()
+        if not value:
+            raise ValueError("La valeur ne peut pas etre vide.")
+        return value
+
+
+class PredictionOutput(BaseModel):
+    """Decrit la reponse metier renvoyee par l'API de prediction."""
+
+    prediction: int = Field(..., description="Classe predite : 0 ou 1")
+    score: float = Field(..., description="Score brut du modele")
+    threshold: float = Field(..., description="Seuil de decision applique")
+    model_version: str = Field(..., description="Version du modele")
+    model_name: str = Field(..., description="Nom du modele")
+```
+
+### Annexe E - `app/services/prediction_service.py`
+
+```python
+from __future__ import annotations
+
+"""Orchestration metier de la prediction."""
+
+from app.ml.predictor import predict_attrition
+from app.ml.preprocess import build_model_features
+
+
+def get_prediction(payload: dict) -> dict:
+    """Construit les features puis renvoie le resultat de prediction."""
+    model_input = build_model_features(payload)
+    return predict_attrition(model_input)
+```
+
+### Annexe F - `app/core/config.py`
+
+```python
+"""Configuration centralisee de l'application."""
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
+    """Decrit les parametres de configuration attendus par l'application."""
+
     app_name: str = "Employee Attrition Prediction API"
     environment: str = "development"
     debug: bool = True
+    database_url: str = "sqlite:///./p5_attrition.db"
 
     model_config = SettingsConfigDict(
         env_file=".env",
@@ -378,24 +1259,12 @@ class Settings(BaseSettings):
 settings = Settings()
 ```
 
-Explication :
-
-- `env_file=".env"` permet de charger une configuration locale si elle existe ;
-- `env_prefix="P5_"` force le projet a n'accepter que des variables comme `P5_DEBUG`, `P5_ENVIRONMENT`, etc. ;
-- cela evite qu'une variable generique du poste de travail perturbe le projet.
-
-### 6.2 `app/ml/loader.py`
-
-Role du fichier :
-
-- charger la metadata du modele ;
-- localiser l'artefact MLflow ;
-- charger le modele en runtime via `mlflow.pyfunc`.
-
-Contenu final :
+### Annexe G - `app/ml/loader.py`
 
 ```python
 from __future__ import annotations
+
+"""Chargement de la metadata et du modele MLflow."""
 
 import json
 from pathlib import Path
@@ -435,25 +1304,308 @@ def load_mlflow_model():
     return model, metadata
 ```
 
-Explication des points importants :
-
-- `load_model_metadata()` lit la configuration du modele exporte ;
-- `resolve_model_path()` ajoute de la robustesse : on n'echoue pas tout de suite si le chemin de metadata n'est plus parfaitement coherent ;
-- le test `(candidate / "MLmodel").exists()` est pertinent car `MLmodel` est le fichier signature standard d'un artefact MLflow ;
-- `mlflow.pyfunc.load_model()` charge le modele sous une interface de prediction uniforme.
-
-### 6.3 `scripts/export_model_to_mlflow.py`
-
-Role du fichier :
-
-- entrainer un modele `LinearSVC` ;
-- le logger dans MLflow ;
-- telecharger l'artefact ;
-- produire une metadata locale pour le runtime.
-
-Contenu final :
+### Annexe H - `app/ml/predictor.py`
 
 ```python
+from __future__ import annotations
+
+"""Prediction metier a partir du modele MLflow charge."""
+
+import pandas as pd
+
+from app.ml.loader import load_mlflow_model
+
+_MODEL = None
+_MODEL_METADATA = None
+
+
+def get_loaded_model():
+    global _MODEL, _MODEL_METADATA
+
+    if _MODEL is None or _MODEL_METADATA is None:
+        _MODEL, _MODEL_METADATA = load_mlflow_model()
+
+    return _MODEL, _MODEL_METADATA
+
+
+def predict_attrition(model_input: pd.DataFrame) -> dict:
+    model, metadata = get_loaded_model()
+    threshold = metadata["threshold"]
+
+    raw_pred = model.predict(model_input)
+    score = float(raw_pred[0])
+    prediction = int(score >= threshold)
+
+    return {
+        "prediction": prediction,
+        "score": score,
+        "threshold": threshold,
+        "model_version": metadata["model_version"],
+        "model_name": metadata["model_name"],
+    }
+```
+
+### Annexe I - `app/ml/preprocess.py`
+
+```python
+from __future__ import annotations
+
+"""Preparation des features avant l'appel au modele."""
+
+import json
+import math
+from pathlib import Path
+
+import pandas as pd
+
+from app.ml.loader import load_model_metadata
+
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+ARTIFACTS_DIR = PROJECT_ROOT / "artifacts" / "model"
+PREPROCESSING_REFERENCE_PATH = ARTIFACTS_DIR / "preprocessing_reference.json"
+
+GENRE_MAPPING = {"M": 1, "MALE": 1, "HOMME": 1, "F": 0, "FEMALE": 0, "FEMME": 0}
+STATUT_MARITAL_MAPPING = {
+    "SINGLE": "Celibataire",
+    "CELIBATAIRE": "Celibataire",
+    "MARRIED": "Marie(e)",
+    "MARIE(E)": "Marie(e)",
+    "DIVORCED": "Divorce(e)",
+    "DIVORCE(E)": "Divorce(e)",
+}
+DEPARTEMENT_MAPPING = {
+    "SALES": "Commercial",
+    "RESEARCH & DEVELOPMENT": "Consulting",
+    "HUMAN RESOURCES": "Ressources Humaines",
+}
+FREQUENCE_DEPLACEMENT_MAPPING = {
+    "NON-TRAVEL": "Aucun",
+    "TRAVEL_FREQUENTLY": "Frequent",
+    "TRAVEL_RARELY": "Occasionnel",
+}
+POSTE_MAPPING = {
+    "SALES EXECUTIVE": "Cadre Commercial",
+    "MANAGER": "Manager",
+    "RESEARCH SCIENTIST": "Autre",
+    "LABORATORY TECHNICIAN": "Tech Lead",
+    "HUMAN RESOURCES": "Autre",
+    "HEALTHCARE REPRESENTATIVE": "Autre",
+    "MANUFACTURING DIRECTOR": "Manager",
+    "SALES REPRESENTATIVE": "Cadre Commercial",
+    "RESEARCH DIRECTOR": "Senior Manager",
+}
+DOMAINE_ETUDE_MAPPING = {
+    "LIFE SCIENCES": "Autre",
+    "MEDICAL": "Autre",
+    "MARKETING": "Marketing",
+    "TECHNICAL DEGREE": "Infra & Cloud",
+    "HUMAN RESOURCES": "Autre",
+    "OTHER": "Autre",
+}
+```
+
+Suite de l'annexe I :
+
+```python
+def safe_log1p(value: float) -> float:
+    return math.log1p(max(value, 0.0))
+
+
+def safe_divide(numerator: float, denominator: float) -> float:
+    if denominator == 0:
+        return 0.0
+    return numerator / denominator
+
+
+def load_preprocessing_reference() -> dict:
+    if PREPROCESSING_REFERENCE_PATH.exists():
+        with open(PREPROCESSING_REFERENCE_PATH, "r", encoding="utf-8") as f:
+            return json.load(f)
+    return {
+        "poste_mapping": {},
+        "domaine_etude_mapping": {},
+        "mediane_revenu_par_niveau": {},
+        "mediane_revenu_par_poste_regroupe": {},
+    }
+
+
+def regroup_poste(raw_poste: str, poste_mapping: dict[str, str]) -> str:
+    mapped_poste = poste_mapping.get(raw_poste, raw_poste)
+    return POSTE_MAPPING.get(mapped_poste.strip().upper(), mapped_poste)
+
+
+def regroup_domaine_etude(raw_domain: str, domain_mapping: dict[str, str]) -> str:
+    mapped_domain = domain_mapping.get(raw_domain, raw_domain)
+    return DOMAINE_ETUDE_MAPPING.get(mapped_domain.strip().upper(), mapped_domain)
+
+
+def normalize_string_category(value: str, mapping: dict[str, str]) -> str:
+    return mapping.get(value.strip().upper(), value.strip())
+
+
+def normalize_genre(value: str | int) -> int:
+    if isinstance(value, (int, float)):
+        return int(value)
+    normalized = GENRE_MAPPING.get(value.strip().upper())
+    if normalized is None:
+        raise ValueError(f"Genre non supporte pour la prediction: {value}")
+    return normalized
+```
+
+Suite finale de l'annexe I :
+
+```python
+def compute_distance_class(distance: float) -> int:
+    if distance < 10:
+        return 0
+    if distance < 30:
+        return 1
+    return 2
+
+
+def build_model_features(payload: dict) -> pd.DataFrame:
+    metadata = load_model_metadata()
+    expected_features: list[str] = metadata["feature_names"]
+
+    refs = load_preprocessing_reference()
+    poste_mapping = refs.get("poste_mapping", {})
+    domaine_mapping = refs.get("domaine_etude_mapping", {})
+    mediane_revenu_par_niveau = refs.get("mediane_revenu_par_niveau", {})
+    mediane_revenu_par_poste_regroupe = refs.get("mediane_revenu_par_poste_regroupe", {})
+
+    statut_marital = normalize_string_category(payload["statut_marital"], STATUT_MARITAL_MAPPING)
+    departement = normalize_string_category(payload["departement"], DEPARTEMENT_MAPPING)
+    frequence_deplacement = normalize_string_category(
+        payload["frequence_deplacement"], FREQUENCE_DEPLACEMENT_MAPPING
+    )
+    poste_regroupe = regroup_poste(payload["poste"], poste_mapping)
+    domaine_etude_regroupe = regroup_domaine_etude(payload["domaine_etude"], domaine_mapping)
+
+    poste_col = f"poste_regroupe_{poste_regroupe}"
+    if poste_col not in expected_features:
+        poste_regroupe = "Autre"
+        poste_col = f"poste_regroupe_{poste_regroupe}"
+
+    domain_col = f"domaine_etude_regroupe_{domaine_etude_regroupe}"
+    if domain_col not in expected_features:
+        domaine_etude_regroupe = "Autre"
+        domain_col = f"domaine_etude_regroupe_{domaine_etude_regroupe}"
+
+    niveau_key = str(payload["niveau_hierarchique_poste"])
+    mediane_niveau = float(mediane_revenu_par_niveau.get(niveau_key, payload["revenu_mensuel"]))
+    mediane_poste = float(
+        mediane_revenu_par_poste_regroupe.get(poste_regroupe, payload["revenu_mensuel"])
+    )
+
+    ratio_anciennete_poste = safe_divide(
+        payload["annees_dans_le_poste_actuel"], payload["annees_dans_l_entreprise"]
+    )
+    ratio_anciennete_manager = safe_divide(
+        payload["annes_sous_responsable_actuel"], payload["annees_dans_l_entreprise"]
+    )
+    ratio_experience_entreprise = safe_divide(
+        payload["annees_dans_l_entreprise"], payload["annee_experience_totale"]
+    )
+
+    evolution_evaluation = payload["note_evaluation_actuelle"] - payload["note_evaluation_precedente"]
+    jamais_promu = int(payload["annees_depuis_la_derniere_promotion"] == 0)
+    progression_salariale_faible = int(payload["augementation_salaire_precedente"] < 10)
+    bonne_perf_peu_augmente = int(
+        payload["note_evaluation_actuelle"] >= 4
+        and payload["augementation_salaire_precedente"] < 10
+    )
+    sous_remunere_niveau = int(payload["revenu_mensuel"] < mediane_niveau)
+    mobilite_interne_potentielle = int(
+        payload["annees_dans_le_poste_actuel"] >= 3
+        and payload["annees_depuis_la_derniere_promotion"] >= 2
+    )
+
+    retard_promotion_relatif = safe_divide(
+        payload["annees_depuis_la_derniere_promotion"], payload["annees_dans_l_entreprise"]
+    )
+    revenu_par_niveau = safe_divide(payload["revenu_mensuel"], max(payload["niveau_hierarchique_poste"], 1))
+    revenu_par_poste = safe_divide(
+        payload["revenu_mensuel"], max(payload["nombre_employee_sous_responsabilite"] + 1, 1)
+    )
+
+    row = {
+        "age": payload["age"],
+        "genre": normalize_genre(payload["genre"]),
+        "nombre_experiences_precedentes": payload["nombre_experiences_precedentes"],
+        "satisfaction_employee_environnement": payload["satisfaction_employee_environnement"],
+        "note_evaluation_precedente": payload["note_evaluation_precedente"],
+        "niveau_hierarchique_poste": payload["niveau_hierarchique_poste"],
+        "satisfaction_employee_nature_travail": payload["satisfaction_employee_nature_travail"],
+        "satisfaction_employee_equipe": payload["satisfaction_employee_equipe"],
+        "satisfaction_employee_equilibre_pro_perso": payload["satisfaction_employee_equilibre_pro_perso"],
+        "note_evaluation_actuelle": payload["note_evaluation_actuelle"],
+        "heure_supplementaires": payload["heure_supplementaires"],
+        "augementation_salaire_precedente": payload["augementation_salaire_precedente"],
+        "nombre_participation_pee": payload["nombre_participation_pee"],
+        "nb_formations_suivies": payload["nb_formations_suivies"],
+        "distance_domicile_travail": payload["distance_domicile_travail"],
+        "niveau_education": payload["niveau_education"],
+        "revenu_mensuel_log": safe_log1p(payload["revenu_mensuel"]),
+        "annee_experience_totale_log": safe_log1p(payload["annee_experience_totale"]),
+        "annees_dans_l_entreprise_log": safe_log1p(payload["annees_dans_l_entreprise"]),
+        "annees_dans_le_poste_actuel_log": safe_log1p(payload["annees_dans_le_poste_actuel"]),
+        "annees_depuis_la_derniere_promotion_log": safe_log1p(payload["annees_depuis_la_derniere_promotion"]),
+        "annes_sous_responsable_actuel_log": safe_log1p(payload["annes_sous_responsable_actuel"]),
+        "distance_domicile_travail_classe": compute_distance_class(payload["distance_domicile_travail"]),
+        "ratio_anciennete_poste": ratio_anciennete_poste,
+        "ratio_anciennete_manager": ratio_anciennete_manager,
+        "ratio_experience_entreprise": ratio_experience_entreprise,
+        "mobilite_interne_potentielle": mobilite_interne_potentielle,
+        "jamais_promu": jamais_promu,
+        "retard_promotion_relatif": retard_promotion_relatif,
+        "progression_salariale_faible": progression_salariale_faible,
+        "evolution_evaluation": evolution_evaluation,
+        "bonne_perf_peu_augmente": bonne_perf_peu_augmente,
+        "mediane_revenu_par_niveau": mediane_niveau,
+        "revenu_par_niveau": revenu_par_niveau,
+        "sous_remunere_niveau": sous_remunere_niveau,
+        "mediane_revenu_par_poste": mediane_poste,
+        "revenu_par_poste": revenu_par_poste,
+    }
+
+    for feature in expected_features:
+        if feature.startswith("statut_marital_") or feature.startswith("departement_") \
+           or feature.startswith("frequence_deplacement_") or feature.startswith("poste_regroupe_") \
+           or feature.startswith("domaine_etude_regroupe_"):
+            row.setdefault(feature, 0)
+
+    marital_col = f"statut_marital_{statut_marital}"
+    department_col = f"departement_{departement}"
+    travel_col = f"frequence_deplacement_{frequence_deplacement}"
+
+    if marital_col in expected_features:
+        row[marital_col] = 1
+    if department_col in expected_features:
+        row[department_col] = 1
+    if travel_col in expected_features:
+        row[travel_col] = 1
+    if poste_col in expected_features:
+        row[poste_col] = 1
+    if domain_col in expected_features:
+        row[domain_col] = 1
+
+    final_row = {feature: row.get(feature, 0) for feature in expected_features}
+    df = pd.DataFrame([final_row], columns=expected_features)
+
+    for feature in expected_features:
+        if feature in INTEGER_FEATURES:
+            df[feature] = df[feature].astype("int64")
+        else:
+            df[feature] = df[feature].astype("float64")
+
+    return df
+```
+
+### Annexe J - `scripts/export_model_to_mlflow.py`
+
+```python
+"""Script d'entrainement et d'export du modele vers MLflow."""
+
 from pathlib import Path
 import json
 import shutil
@@ -471,11 +1623,13 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 ARTIFACTS_DIR = PROJECT_ROOT / "artifacts" / "model"
 LOCAL_MODEL_DIR = ARTIFACTS_DIR / "current"
 METADATA_PATH = ARTIFACTS_DIR / "metadata.json"
+```
 
+Suite de l'annexe J :
 
+```python
 def load_training_data() -> tuple[pd.DataFrame, pd.Series]:
     df = pd.read_csv(PROJECT_ROOT / "data" / "processed" / "df_MODEL.csv")
-
     target_col = "a_quitte_l_entreprise"
     cols_to_drop = [target_col, "id_employee"]
     X = df.drop(columns=cols_to_drop, errors="ignore")
@@ -486,17 +1640,15 @@ def load_training_data() -> tuple[pd.DataFrame, pd.Series]:
 def build_model() -> Pipeline:
     return Pipeline([
         ("scaler", StandardScaler()),
-        ("model", LinearSVC(
-            random_state=42,
-            dual="auto",
-            max_iter=100000,
-        )),
+        ("model", LinearSVC(random_state=42, dual="auto", max_iter=100000)),
     ])
+```
 
+Suite finale de l'annexe J :
 
+```python
 def main() -> None:
     X, y = load_training_data()
-
     model = build_model()
     model.fit(X, y)
 
@@ -514,21 +1666,16 @@ def main() -> None:
             signature=signature,
             input_example=input_example,
         )
-
         model_uri = model_info.model_uri
 
     ARTIFACTS_DIR.mkdir(parents=True, exist_ok=True)
     export_tmp_dir = ARTIFACTS_DIR / "_download"
-
     if export_tmp_dir.exists():
         shutil.rmtree(export_tmp_dir)
     if LOCAL_MODEL_DIR.exists():
         shutil.rmtree(LOCAL_MODEL_DIR)
 
     export_tmp_dir.mkdir(parents=True, exist_ok=True)
-
-    # Download into a staging directory to avoid mixing model files
-    # with metadata and preprocessing artifacts stored in artifacts/model.
     downloaded_path = Path(download_artifacts(
         artifact_uri=model_uri,
         dst_path=str(export_tmp_dir),
@@ -549,505 +1696,271 @@ def main() -> None:
     with open(METADATA_PATH, "w", encoding="utf-8") as f:
         json.dump(metadata, f, indent=2, ensure_ascii=False)
 
-    print("Model exported to MLflow.")
-    print(f"Local model available at: {LOCAL_MODEL_DIR}")
-    print(f"Metadata saved to: {METADATA_PATH}")
-
 
 if __name__ == "__main__":
     main()
 ```
 
-Explications importantes :
+## 18. Mise a jour de l'etat du projet
 
-- `load_training_data()` reconstruit les donnees d'entree du modele en retirant la cible ;
-- `LinearSVC` est encapsule dans une `Pipeline` avec `StandardScaler`, ce qui est une bonne pratique pour serialiser preprocessing + modele ensemble ;
-- `infer_signature()` capture le schema de l'entree et de la sortie pour MLflow ;
-- l'utilisation d'un dossier tampon `_download` evite de melanger l'artefact du modele avec les autres fichiers deja presents dans `artifacts/model` ;
-- `metadata.json` sert de pont entre l'export et le runtime de l'API.
+Depuis la redaction initiale de ce mode operatoire, les points suivants ont ete realises :
 
-Pourquoi le dossier tampon etait necessaire :
+- branchement effectif de la persistance SQLAlchemy sur l'endpoint `/predict` ;
+- enregistrement en base de `prediction_requests`, `prediction_results` et `api_audit_logs` ;
+- ajout de tests d'integration sur le flux complet de prediction et de tracabilite ;
+- ajout d'une table `employees_source` pour preparer la couche PostgreSQL reelle ;
+- implementation d'un script `scripts/seed_data.py` qui fusionne les trois extraits metier puis les charge en base ;
+- ajout de tests d'integration sur la fusion des CSV et sur l'insertion des donnees source ;
+- validation reelle du flux PostgreSQL local avec Docker Compose, creation du schema, chargement de `1470` lignes source et appel HTTP reel sur `/api/v1/predict`.
 
-Avant correction, le telechargement dans `artifacts/model` pouvait produire une structure incoherente avec la valeur `current` attendue par la metadata. Le staging rend le processus deterministe.
+En pratique, le projet couvre maintenant :
 
-### 6.4 `app/ml/preprocess.py`
+- l'API de prediction ;
+- le packaging du modele via MLflow ;
+- la tracabilite applicative ;
+- la preparation de la couche base de donnees source ;
+- une premiere base de tests unitaires et d'integration.
 
-Role du fichier :
+La prochaine suite logique est :
 
-- transformer un payload metier en vecteur final de features aligne sur le modele exporte.
+- documenter la procedure d'exploitation locale validee ;
+- relancer les tests avant commit ;
+- figer un commit propre de cette etape ;
+- puis poursuivre avec les scenarios de deploiement, d'authentification et de portfolio.
 
-Modifications apportees :
+### 18.1 Validation reelle de PostgreSQL en local
 
-- ajout de mappings de normalisation pour `genre`, `statut_marital`, `departement`, `frequence_deplacement`, `poste`, `domaine_etude` ;
-- ajout d'une logique de repli vers `Autre` pour les categories inconnues ;
-- ajout d'un cast final des colonnes vers les bons types `int64` ou `float64`.
+Objectif :
+prouver que la chaine complete fonctionne contre une vraie base PostgreSQL, et pas seulement contre SQLite en memoire dans les tests.
 
-Exemple des ajouts structurants :
-
-```python
-GENRE_MAPPING = {
-    "M": 1,
-    "MALE": 1,
-    "HOMME": 1,
-    "F": 0,
-    "FEMALE": 0,
-    "FEMME": 0,
-}
-```
-
-```python
-def normalize_genre(value: str | int) -> int:
-    if isinstance(value, (int, float)):
-        return int(value)
-
-    normalized = GENRE_MAPPING.get(value.strip().upper())
-    if normalized is None:
-        raise ValueError(f"Genre non supporte pour la prediction: {value}")
-    return normalized
-```
-
-```python
-df = pd.DataFrame([final_row], columns=expected_features)
-
-for feature in expected_features:
-    if feature in INTEGER_FEATURES:
-        df[feature] = df[feature].astype("int64")
-    else:
-        df[feature] = df[feature].astype("float64")
-
-return df
-```
-
-Pourquoi ces parties sont importantes :
-
-- elles assurent que l'API accepte un vocabulaire metier plus naturel ;
-- elles rendent la prediction compatible avec le schema MLflow ;
-- elles limitent les erreurs de production dues aux categories ou types inattendus.
-
-### 6.5 `docs/p5_trace.md`
-
-Role du fichier :
-
-- formaliser la trace detaillee du travail realise dans cette discussion ;
-- servir de document de synthese technique et pedagogique.
-
-## 7. Interfaces tierces et manipulations externes
-
-Dans cette discussion precise, aucune manipulation n'a ete realisee sur :
-
-- GitHub ;
-- une plateforme cloud ;
-- une interface MLflow web ;
-- Docker Desktop ;
-- Render, Heroku, Azure, AWS ou GCP ;
-- une base de donnees via interface graphique.
-
-Les interactions externes ont ete limitees a :
-
-- l'installation locale d'un package Python (`pypdf`) via `pip` ;
-- la lecture d'un PDF local situe sur le Bureau.
-
-Il est important de l'ecrire explicitement pour rester fidele a la realite de la seance.
-
-## 8. Resultat obtenu
-
-Commande de verification finale :
+Commandes lancees :
 
 ```powershell
-uv run pytest -q
+docker compose up -d postgres
+$env:P5_DATABASE_URL="postgresql+psycopg://postgres:postgres@127.0.0.1:5433/p5_attrition"
+uv run python scripts/create_db.py
+uv run python scripts/seed_data.py
+uv run uvicorn app.main:app --host 127.0.0.1 --port 8001
 ```
 
-Resultat :
+Pourquoi ces commandes :
 
-```text
-5 passed in 13.69s
+- `docker compose up -d postgres` demarre l'instance PostgreSQL locale du projet ;
+- `P5_DATABASE_URL` force explicitement l'application a utiliser cette base plutot que la valeur SQLite par defaut ;
+- `create_db.py` cree les tables ORM reelles ;
+- `seed_data.py` charge les donnees source fusionnees ;
+- `uvicorn` permet de tester le vrai endpoint HTTP avec la vraie persistance.
+
+Verification realisee :
+
+- connexion TCP validee vers PostgreSQL sur `127.0.0.1:5433` ;
+- schema cree avec les tables `employees_source`, `prediction_requests`, `prediction_results`, `api_audit_logs` ;
+- `1470` lignes inserees dans `employees_source` ;
+- appel HTTP reel `POST /api/v1/predict` retourne une reponse JSON valide ;
+- une ligne de requete, une ligne de resultat et une ligne de log HTTP sont bien visibles en base.
+
+Exemple de reponse API obtenue :
+
+```json
+{"prediction":0,"score":0.0,"threshold":0.1138,"model_version":"0.1.0","model_name":"linear_svc_attrition"}
 ```
 
-Interpretation :
+Exemple de verification SQL :
 
-- la configuration ne bloque plus la collecte des tests ;
-- l'endpoint de prediction renvoie a nouveau une reponse 200 sur le cas valide ;
-- le modele MLflow est charge correctement ;
-- le preprocessing produit des donnees compatibles avec le schema exporte.
+```sql
+SELECT count(*) FROM employees_source;
+SELECT count(*) FROM prediction_requests;
+SELECT count(*) FROM prediction_results;
+SELECT count(*) FROM api_audit_logs;
+```
 
-## 9. Erreurs courantes du meme type qui auraient pu se produire
+### 18.2 Erreurs rencontrees pendant la validation locale
 
-Cette section ouvre sur des erreurs frequentes en deploiement ML, meme si elles n'ont pas toutes ete observees ici.
+#### Erreur 1 : echec d'authentification PostgreSQL sur `127.0.0.1:5432`
 
-### 9.1 Derive entre preprocessing d'entrainement et preprocessing d'inference
+Symptome :
 
-Exemple :
+- `psycopg.OperationalError`
+- message de type `password authentication failed for user "postgres"`
 
-- le notebook transforme une variable categorielle ;
-- l'API reproduit cette logique "a la main" mais oublie une categorie.
+Cause reelle :
 
-Effet :
+- un autre serveur PostgreSQL natif etait deja lance sur Windows et occupait le port `5432` ;
+- les commandes Python visaient donc cette instance locale, et non le conteneur Docker du projet.
 
-- predictions incoherentes ;
-- erreur de schema ;
-- performance degradee.
+Resolution :
 
-Bonne pratique :
+- verification du processus a l'ecoute sur `5432` ;
+- changement du mapping de port Docker du projet de `5432:5432` vers `5433:5432` dans `docker-compose.yml` ;
+- mise a jour de `P5_DATABASE_URL` vers `127.0.0.1:5433`.
 
-- embarquer le preprocessing directement dans la pipeline serialisee quand c'est possible ;
-- ou stocker explicitement les mappings de reference de maniere versionnee.
+Lecon a retenir :
 
-### 9.2 Artefacts MLflow incomplets
+- quand une connexion base echoue alors que le conteneur est sain, il faut verifier immediatement quel processus ecoute vraiment sur le port cible.
 
-Exemple :
+#### Erreur 2 : conflit sur le port API `8000`
 
-- `MLmodel` absent ;
-- chemin de `model.pkl` incorrect ;
-- metadata de projet non synchronisee avec le vrai dossier exporte.
+Symptome :
 
-Effet :
+- `uvicorn` ne pouvait pas binder `127.0.0.1:8000` ;
+- une ancienne API locale repondait deja sur ce port, avec un comportement code plus ancien.
 
-- l'API ne peut plus charger le modele ;
-- le deploiement echoue malgre un entrainement reussi.
+Cause :
 
-Bonne pratique :
+- une instance precedente de l'API etait deja lancee sur la machine.
 
-- verifier l'artefact exporte juste apres generation ;
-- fixer une convention stable de stockage.
+Resolution :
 
-### 9.3 Incoherence entre test payload et vocabulaire attendu
+- verification du port `8000` ;
+- lancement de l'API de validation sur `8001` pour isoler le test reel.
 
-Exemple :
+Lecon a retenir :
 
-- les tests envoient `Travel_Rarely` ;
-- le preprocessing attend `Occasionnel`.
+- en validation locale, il faut toujours verifier que l'on parle bien a la bonne instance HTTP avant d'interpreter un resultat metier.
 
-Effet :
+### Annexe K - `app/db/base.py`
 
-- colonnes one-hot jamais activees ;
-- prediction degradee ou schema invalide.
+```python
+"""Base declarative SQLAlchemy du projet."""
 
-Bonne pratique :
+from sqlalchemy.orm import DeclarativeBase
 
-- documenter le contrat d'API ;
-- centraliser les mappings de valeurs ;
-- tester plusieurs variantes d'entree.
 
-### 9.4 Variables d'environnement parasites
+class Base(DeclarativeBase):
+    """Classe mere des modeles ORM SQLAlchemy."""
 
-Exemple :
+    pass
+```
 
-- `DEBUG`, `ENV`, `DATABASE_URL` ou `PORT` deja definies sur la machine.
+### Annexe L - `app/db/session.py`
 
-Effet :
+```python
+from __future__ import annotations
 
-- comportement local incomprehensible ;
-- tests qui passent chez une personne et echouent chez une autre.
+"""Gestion de l'engine et des sessions SQLAlchemy."""
 
-Bonne pratique :
+from collections.abc import Generator
+from sqlalchemy import create_engine
+from sqlalchemy.orm import Session, sessionmaker
+from app.core.config import settings
 
-- prefixer les variables du projet ;
-- definir un `.env.example` ;
-- documenter les variables obligatoires.
 
-### 9.5 Encodage et accents
+def _engine_kwargs(database_url: str) -> dict:
+    if database_url.startswith("sqlite"):
+        return {"connect_args": {"check_same_thread": False}}
+    return {"pool_pre_ping": True}
 
-Exemple :
 
-- valeurs `Marié(e)` ou chemins de fichiers avec caracteres accentues.
+engine = create_engine(
+    settings.database_url,
+    **_engine_kwargs(settings.database_url),
+)
 
-Effet :
+SessionLocal = sessionmaker(
+    bind=engine,
+    autoflush=False,
+    autocommit=False,
+    class_=Session,
+)
 
-- erreurs de comparaison de chaines ;
-- problemes de lecture/chargement selon le shell ou la plateforme.
 
-Bonne pratique :
+def get_db() -> Generator[Session, None, None]:
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+```
 
-- utiliser UTF-8 explicitement ;
-- centraliser la normalisation ;
-- tester les chemins et categories accentues sur Windows.
+### Annexe M - `app/db/models/tracking.py`
 
-## 10. Big picture du processus
+```python
+from __future__ import annotations
 
-La vue d'ensemble du travail realise peut se resumer ainsi :
+"""Modeles ORM dedies a la tracabilite des predictions."""
 
-1. On part d'un symptome visible : un test ne passe pas.
-2. On reproduit l'erreur dans l'environnement reel.
-3. On remonte la chaine complete du endpoint jusqu'au modele.
-4. On corrige d'abord les blocages de configuration.
-5. On corrige ensuite l'alignement entre export MLflow et chargement runtime.
-6. On corrige enfin le contrat entre payload API et schema strict du modele.
-7. On revalide l'ensemble par les tests.
+from datetime import datetime
+from sqlalchemy import DateTime, Float, ForeignKey, Integer, JSON, String, Text, func
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+from app.db.base import Base
 
-Ce processus est typique d'un projet de deploiement ML : la qualite du systeme ne depend pas seulement du modele, mais de tout l'ecosysteme autour :
 
-- configuration ;
-- serialisation ;
-- convention de stockage ;
-- contrat d'API ;
-- tests ;
-- robustesse des transformations.
+class PredictionRequest(Base):
+    __tablename__ = "prediction_requests"
 
-## 11. Repertoire des outils utilises et de leur role
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    source_channel: Mapped[str] = mapped_column(String(50), default="api", nullable=False)
+    payload_json: Mapped[dict] = mapped_column(JSON, nullable=False)
+    requested_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
 
-### 11.1 FastAPI
+    prediction_result: Mapped["PredictionResult | None"] = relationship(
+        back_populates="prediction_request", cascade="all, delete-orphan", uselist=False
+    )
+    audit_logs: Mapped[list["ApiAuditLog"]] = relationship(
+        back_populates="prediction_request", cascade="all, delete-orphan"
+    )
 
-Role dans le projet :
 
-- exposer les endpoints HTTP ;
-- offrir une interface de prediction exploitable.
+class PredictionResult(Base):
+    __tablename__ = "prediction_results"
 
-Elements utilises ici :
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    request_id: Mapped[int] = mapped_column(
+        ForeignKey("prediction_requests.id"), nullable=False, unique=True
+    )
+    prediction: Mapped[int] = mapped_column(Integer, nullable=False)
+    score: Mapped[float] = mapped_column(Float, nullable=False)
+    threshold: Mapped[float] = mapped_column(Float, nullable=False)
+    model_version: Mapped[str] = mapped_column(String(50), nullable=False)
+    model_name: Mapped[str] = mapped_column(String(100), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
 
-- route `/api/v1/predict` ;
-- `TestClient` pour les tests d'API.
+    prediction_request: Mapped["PredictionRequest"] = relationship(back_populates="prediction_result")
 
-Elements frequents non utilises ici :
 
-- dependencies injection avancee ;
-- middleware custom ;
-- auth ;
-- background tasks ;
-- OpenAPI personnalisee.
+class ApiAuditLog(Base):
+    __tablename__ = "api_audit_logs"
 
-### 11.2 Pydantic / Pydantic Settings
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    request_id: Mapped[int | None] = mapped_column(
+        ForeignKey("prediction_requests.id"), nullable=True
+    )
+    endpoint: Mapped[str] = mapped_column(String(255), nullable=False)
+    status_code: Mapped[int] = mapped_column(Integer, nullable=False)
+    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
 
-Role dans le projet :
+    prediction_request: Mapped["PredictionRequest | None"] = relationship(back_populates="audit_logs")
+```
 
-- valider les payloads ;
-- typer les sorties ;
-- charger la configuration.
+### Annexe N - `scripts/create_db.py`
 
-Elements utilises ici :
+```python
+"""Script de creation du schema de base de donnees."""
 
-- `BaseModel` ;
-- `Field` ;
-- `field_validator` ;
-- `BaseSettings` ;
-- `SettingsConfigDict`.
+from pathlib import Path
+import sys
 
-Elements frequents non utilises ici :
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
 
-- validateurs de modele globaux ;
-- alias complexes ;
-- secret management ;
-- settings multi-environnements plus pousses.
+from app.db.base import Base
+from app.db.models import ApiAuditLog, PredictionRequest, PredictionResult
+from app.db.session import engine
 
-### 11.3 Pandas
 
-Role dans le projet :
+def main() -> None:
+    Base.metadata.create_all(bind=engine)
+    print("Database schema created successfully.")
 
-- charger les datasets ;
-- construire le DataFrame de prediction ;
-- verifier colonnes et types.
 
-Elements utilises ici :
-
-- `read_csv` ;
-- `DataFrame` ;
-- `astype`.
-
-Elements frequents non utilises ici :
-
-- merges ;
-- pipelines de transformation plus complexes ;
-- serialisation parquet.
-
-### 11.4 scikit-learn
-
-Role dans le projet :
-
-- entrainer le modele ;
-- organiser le preprocessing simple et le classifieur dans une pipeline.
-
-Elements utilises ici :
-
-- `Pipeline` ;
-- `StandardScaler` ;
-- `LinearSVC`.
-
-Elements frequents non utilises ici :
-
-- `ColumnTransformer` ;
-- encoders dedies ;
-- cross-validation ;
-- calibration des scores ;
-- model selection ;
-- persistence hors MLflow.
-
-### 11.5 MLflow
-
-Role dans le projet :
-
-- logger le modele ;
-- enregistrer sa signature ;
-- fournir un format standard de chargement.
-
-Elements utilises ici :
-
-- `mlflow.set_tracking_uri` ;
-- `mlflow.set_experiment` ;
-- `mlflow.start_run` ;
-- `mlflow.sklearn.log_model` ;
-- `infer_signature` ;
-- `download_artifacts` ;
-- `mlflow.pyfunc.load_model`.
-
-Elements frequents non utilises ici :
-
-- model registry distant ;
-- stages ou aliases ;
-- tracking server distant ;
-- comparaison d'experiences ;
-- serving MLflow.
-
-### 11.6 Pytest
-
-Role dans le projet :
-
-- verifier la non regression de l'application.
-
-Elements utilises ici :
-
-- execution simple de suite de tests ;
-- test endpoint HTTP ;
-- test configuration.
-
-Elements frequents non utilises ici :
-
-- fixtures plus riches ;
-- parametrization avancee ;
-- mocks ;
-- couverture detaillee ;
-- tests d'integration multi-services.
-
-### 11.7 uv
-
-Role dans le projet :
-
-- executer les commandes dans l'environnement du projet.
-
-Elements utilises ici :
-
-- `uv run pytest ...` ;
-- `uv run python -c ...`.
-
-Elements frequents non utilises ici :
-
-- verrouillage plus poussee des dependances ;
-- gestion d'environnements multiples ;
-- workflows CI complets bases sur `uv`.
-
-### 11.8 pip
-
-Role dans cette discussion :
-
-- installation ponctuelle de `pypdf`.
-
-Elements utilises ici :
-
-- `python -m pip install --user pypdf`.
-
-Elements frequents non utilises ici :
-
-- requirements dedies doc ;
-- environnement virtuel separe pour l'analyse documentaire.
-
-## 12. Ouvertures : autres manieres de faire et pistes d'amelioration
-
-### 12.1 Emballer tout le preprocessing dans la pipeline de modele
-
-Ici, une partie importante du preprocessing d'inference est codee dans l'API. Une alternative plus robuste serait :
-
-- serialiser une pipeline scikit-learn complete incluant les transformations categorielles et numeriques ;
-- reduire au minimum la logique de reconstruction de features dans l'API.
-
-Avantage :
-
-- moins de derive entre entrainement et inference ;
-- moins de logique metier dupliquee.
-
-### 12.2 Utiliser un encodeur explicite des categories
-
-Au lieu d'ecrire des mappings manuels, on pourrait :
-
-- apprendre les categories avec un `OneHotEncoder` ;
-- versionner ses categories ;
-- exposer un contrat d'entree plus stable.
-
-Cela serait particulierement pertinent si le modele evolue ou si le nombre de categories augmente.
-
-### 12.3 Mieux versionner la metadata du modele
-
-La metadata actuelle contient :
-
-- un nom ;
-- une version ;
-- un seuil ;
-- une liste de features ;
-- un chemin local.
-
-On pourrait enrichir cela avec :
-
-- hash d'artefact ;
-- date d'entrainement ;
-- metriques principales ;
-- version du preprocessing ;
-- schema d'entree metier.
-
-### 12.4 Ajouter des tests plus representatifs
-
-Tests supplementaires utiles :
-
-- prediction avec categories inconnues ;
-- prediction avec accents ;
-- test d'absence du dossier MLflow ;
-- test du script d'export lui-meme ;
-- test de non regression sur les types du DataFrame final.
-
-### 12.5 Passer a un modele probabiliste ou calibrer le score
-
-Le `LinearSVC` fournit ici un `decision_function`, pas une probabilite naturelle. Pour d'autres usages, on pourrait preferer :
-
-- `LogisticRegression` ;
-- calibration de score ;
-- gradient boosting ;
-- modele arbre interpretable ;
-- modele plus complexe si la performance le justifie.
-
-Le bon choix depend du besoin :
-
-- score interpretable ;
-- probabilite exploitable ;
-- performance maximale ;
-- explicabilite ;
-- contraintes de latence.
-
-### 12.6 Industrialiser davantage le deploiement
-
-Hors contraintes pedagogiques, on pourrait ajouter :
-
-- conteneurisation Docker ;
-- CI/CD ;
-- registry de modele distant ;
-- observabilite ;
-- monitoring de derive ;
-- journalisation des predictions ;
-- gestion de secrets ;
-- documentation d'API plus complete.
-
-## 13. Conclusion
-
-Cette discussion a permis de remettre en etat la chaine complete de prediction du projet P5, non pas par un correctif unique, mais par une remise en coherence de plusieurs couches :
-
-- la configuration applicative ;
-- le chargement du modele MLflow ;
-- le script d'export ;
-- la transformation des donnees d'entree ;
-- la conformite stricte des types de features.
-
-Le point essentiel a retenir est le suivant : dans un projet de deploiement ML, un modele "fonctionnel" ne suffit pas. Il faut aussi que l'API parle le bon langage metier, que les artefacts soient au bon endroit, que la configuration soit stable, et que les tests couvrent reellement la chaine complete.
-
-Le resultat final est concret :
-
-- les tests passent ;
-- le flux de prediction est de nouveau operationnel ;
-- la structure du projet est plus robuste ;
-- les causes des erreurs sont comprises et documentees.
-
-Ce type de trace detaillee est utile pour la soutenance, pour la redaction du portfolio, et pour montrer une comprehension complete du cycle de deploiement d'un modele de machine learning.
+if __name__ == "__main__":
+    main()
+```

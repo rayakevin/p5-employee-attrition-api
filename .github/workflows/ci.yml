@@ -12,10 +12,25 @@ on:
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+  P5_DATABASE_URL: postgresql+psycopg://postgres:postgres@127.0.0.1:5432/p5_attrition
 
 jobs:
   test:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_DB: p5_attrition
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d p5_attrition"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
 
     steps:
       - name: Checkout repository
@@ -33,6 +48,14 @@ jobs:
         run: |
           uv venv
           uv pip install -r requirements.txt
+
+      - name: Create database schema
+        run: |
+          uv run python scripts/create_db.py
+
+      - name: Seed source data
+        run: |
+          uv run python scripts/seed_data.py
 
       - name: Run tests
         run: |

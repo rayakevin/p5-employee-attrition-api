@@ -1,3 +1,10 @@
+"""Script d'entraînement et d'export du modèle vers MLflow.
+
+L'objectif est de produire un artefact stable exploitable par l'API, avec
+une metadata applicative complémentaire. Ce script rejoue une version
+compacte du pipeline de préparation du modèle final du projet.
+"""
+
 from pathlib import Path
 import json
 import shutil
@@ -18,6 +25,7 @@ METADATA_PATH = ARTIFACTS_DIR / "metadata.json"
 
 
 def load_training_data() -> tuple[pd.DataFrame, pd.Series]:
+    """Charge le dataset modèle puis sépare les variables explicatives et la cible."""
     df = pd.read_csv(PROJECT_ROOT / "data" / "processed" / "df_MODEL.csv")
 
     target_col = "a_quitte_l_entreprise"
@@ -28,6 +36,7 @@ def load_training_data() -> tuple[pd.DataFrame, pd.Series]:
 
 
 def build_model() -> Pipeline:
+    """Construit la pipeline scikit-learn exportée dans MLflow."""
     return Pipeline([
         ("scaler", StandardScaler()),
         ("model", LinearSVC(
@@ -39,6 +48,7 @@ def build_model() -> Pipeline:
 
 
 def main() -> None:
+    """Entraîne, loggue et exporte le modèle au format MLflow."""
     X, y = load_training_data()
 
     model = build_model()
@@ -71,8 +81,8 @@ def main() -> None:
 
     export_tmp_dir.mkdir(parents=True, exist_ok=True)
 
-    # Download into a staging directory to avoid mixing model files
-    # with metadata and preprocessing artifacts stored in artifacts/model.
+    # On télécharge d'abord dans un dossier tampon pour éviter de mélanger
+    # l'artefact MLflow et les autres fichiers du dossier `artifacts/model`.
     downloaded_path = Path(download_artifacts(
         artifact_uri=model_uri,
         dst_path=str(export_tmp_dir),

@@ -1,0 +1,2 @@
+-- Fichier reserve a une version SQL explicite du schema de base de donnees.
+-- Il pourra servir de support documentaire ou de variante au schema ORM.

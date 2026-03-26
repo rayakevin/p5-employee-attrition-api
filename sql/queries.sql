@@ -1,0 +1,3 @@
+-- Fichier reserve aux requetes SQL de demonstration, diagnostic ou audit.
+-- Il pourra documenter plus tard des requetes utiles sur les tables de
+-- prediction, de resultats et de logs techniques.

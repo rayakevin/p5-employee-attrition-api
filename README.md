@@ -33,7 +33,49 @@ The application will include:
 
 ## Installation
 
-Project setup instructions will be completed as the repository is structured.
+```powershell
+uv venv
+.venv\Scripts\Activate.ps1
+uv pip install -r requirements.txt
+```
+
+## Local PostgreSQL setup
+
+Start PostgreSQL with Docker Compose:
+
+```powershell
+docker compose up -d postgres
+```
+
+Use this connection string locally:
+
+```env
+P5_DATABASE_URL=postgresql+psycopg://postgres:postgres@127.0.0.1:5433/p5_attrition
+```
+
+Note:
+if a local PostgreSQL server is already running on your machine, port `5432` may already be occupied. This project exposes the Docker PostgreSQL instance on port `5433` to avoid that conflict.
+
+Create the schema and load the source data:
+
+```powershell
+$env:P5_DATABASE_URL="postgresql+psycopg://postgres:postgres@127.0.0.1:5433/p5_attrition"
+uv run python scripts/create_db.py
+uv run python scripts/seed_data.py
+```
+
+Run the API locally with the same database:
+
+```powershell
+$env:P5_DATABASE_URL="postgresql+psycopg://postgres:postgres@127.0.0.1:5433/p5_attrition"
+uv run uvicorn app.main:app --reload
+```
+
+Stop PostgreSQL when finished:
+
+```powershell
+docker compose down
+```
 
 ## Branching strategy
 
@@ -48,7 +90,7 @@ Main branches and feature branches will follow a naming convention such as:
 
 ## Project status
 
-Project initialization in progress.
+API, MLflow packaging, local tracing and source-data seeding are in place.
 
 ## Git workflow
 

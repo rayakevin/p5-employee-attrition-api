@@ -1,8 +1,19 @@
 from __future__ import annotations
 
+"""Preparation des features avant l'appel au modele.
+
+Ce module fait le pont entre le payload metier de l'API et le schema strict
+attendu par le modele exporte dans MLflow. La logique principale consiste a :
+
+1. normaliser les categories metier ;
+2. recalculer les variables derivees utilisees a l'entrainement ;
+3. reconstituer les colonnes one-hot ;
+4. forcer les types finaux pour respecter la signature du modele.
+"""
+
+import json
 import math
 from pathlib import Path
-import json
 
 import pandas as pd
 
@@ -23,15 +34,15 @@ GENRE_MAPPING = {
 }
 
 STATUT_MARITAL_MAPPING = {
-    "SINGLE": "Célibataire",
-    "CELIBATAIRE": "Célibataire",
-    "CÉLIBATAIRE": "Célibataire",
-    "MARRIED": "Marié(e)",
-    "MARIE(E)": "Marié(e)",
-    "MARIÉ(E)": "Marié(e)",
-    "DIVORCED": "Divorcé(e)",
-    "DIVORCE(E)": "Divorcé(e)",
-    "DIVORCÉ(E)": "Divorcé(e)",
+    "SINGLE": "Celibataire",
+    "CELIBATAIRE": "Celibataire",
+    "CÉLIBATAIRE": "Celibataire",
+    "MARRIED": "Marie(e)",
+    "MARIE(E)": "Marie(e)",
+    "MARIÉ(E)": "Marie(e)",
+    "DIVORCED": "Divorce(e)",
+    "DIVORCE(E)": "Divorce(e)",
+    "DIVORCÉ(E)": "Divorce(e)",
 }
 
 DEPARTEMENT_MAPPING = {
@@ -94,19 +105,23 @@ INTEGER_FEATURES = {
 
 
 def safe_log1p(value: float) -> float:
+    """Applique un log(1+x) securise en ramenant les valeurs negatives a 0."""
     return math.log1p(max(value, 0.0))
 
 
 def safe_divide(numerator: float, denominator: float) -> float:
+    """Retourne une division sure pour eviter une division par zero."""
     if denominator == 0:
         return 0.0
     return numerator / denominator
 
 
 def load_preprocessing_reference() -> dict:
-    """
-    Charge les statistiques et mappings issus du feature engineering entraînement.
-    Si le fichier n'existe pas encore, on retourne des valeurs par défaut.
+    """Charge les references de preprocessing calculees a l'entrainement.
+
+    Si aucun fichier de reference n'existe encore, on renvoie une structure
+    vide afin de garder une inference fonctionnelle avec des valeurs par
+    defaut.
     """
     if PREPROCESSING_REFERENCE_PATH.exists():
         with open(PREPROCESSING_REFERENCE_PATH, "r", encoding="utf-8") as f:
@@ -121,20 +136,24 @@ def load_preprocessing_reference() -> dict:
 
 
 def regroup_poste(raw_poste: str, poste_mapping: dict[str, str]) -> str:
+    """Ramene un poste metier vers une categorie connue du modele."""
     mapped_poste = poste_mapping.get(raw_poste, raw_poste)
     return POSTE_MAPPING.get(mapped_poste.strip().upper(), mapped_poste)
 
 
 def regroup_domaine_etude(raw_domain: str, domain_mapping: dict[str, str]) -> str:
+    """Ramene un domaine d'etude vers une categorie connue du modele."""
     mapped_domain = domain_mapping.get(raw_domain, raw_domain)
     return DOMAINE_ETUDE_MAPPING.get(mapped_domain.strip().upper(), mapped_domain)
 
 
 def normalize_string_category(value: str, mapping: dict[str, str]) -> str:
+    """Normalise une chaine metier selon un dictionnaire de correspondance."""
     return mapping.get(value.strip().upper(), value.strip())
 
 
 def normalize_genre(value: str | int) -> int:
+    """Convertit la representation metier du genre vers l'encodage du modele."""
     if isinstance(value, (int, float)):
         return int(value)
 
@@ -145,10 +164,7 @@ def normalize_genre(value: str | int) -> int:
 
 
 def compute_distance_class(distance: float) -> int:
-    """
-    Classe simple de distance.
-    À ajuster si ton notebook utilise une logique différente.
-    """
+    """Transforme la distance domicile-travail en classe ordinale simple."""
     if distance < 10:
         return 0
     if distance < 30:
@@ -157,8 +173,15 @@ def compute_distance_class(distance: float) -> int:
 
 
 def build_model_features(payload: dict) -> pd.DataFrame:
-    """
-    Transforme les données métier brutes en colonnes finales attendues par le modèle exporté.
+    """Construit le DataFrame final attendu par le modele exporte.
+
+    Etapes principales :
+    1. charger la metadata pour connaitre l'ordre des colonnes ;
+    2. recharger les references de preprocessing si elles existent ;
+    3. normaliser les categories du payload ;
+    4. calculer les variables derivees ;
+    5. preparer les colonnes one-hot ;
+    6. forcer les types de sortie conformes au schema MLflow.
     """
     metadata = load_model_metadata()
     expected_features: list[str] = metadata["feature_names"]
@@ -181,6 +204,8 @@ def build_model_features(payload: dict) -> pd.DataFrame:
     poste_regroupe = regroup_poste(payload["poste"], poste_mapping)
     domaine_etude_regroupe = regroup_domaine_etude(payload["domaine_etude"], domaine_mapping)
 
+    # Si une categorie reconstituee n'existe pas dans le schema final, on
+    # bascule vers "Autre" pour rester compatible avec le modele exporte.
     poste_col = f"poste_regroupe_{poste_regroupe}"
     if poste_col not in expected_features:
         poste_regroupe = "Autre"
@@ -242,6 +267,8 @@ def build_model_features(payload: dict) -> pd.DataFrame:
         max(payload["nombre_employee_sous_responsabilite"] + 1, 1),
     )
 
+    # Ce dictionnaire reconstruit d'abord les variables numeriques et derivees
+    # avant l'ajout des colonnes one-hot.
     row: dict[str, float | int] = {
         "age": payload["age"],
         "genre": normalize_genre(payload["genre"]),
@@ -282,7 +309,8 @@ def build_model_features(payload: dict) -> pd.DataFrame:
         "revenu_par_poste": revenu_par_poste,
     }
 
-    # Colonnes one-hot : on initialise tout à 0 puis on active la bonne valeur si présente.
+    # On initialise toutes les colonnes one-hot a 0 pour rester compatible
+    # avec l'ordre et le schema du modele exporte.
     for feature in expected_features:
         if feature.startswith("statut_marital_"):
             row.setdefault(feature, 0)
@@ -310,11 +338,12 @@ def build_model_features(payload: dict) -> pd.DataFrame:
     if domain_col in expected_features:
         row[domain_col] = 1
 
-    # On force le DataFrame dans l'ordre exact attendu par le modèle
+    # Le DataFrame final respecte l'ordre exact attendu par le modele.
     final_row = {feature: row.get(feature, 0) for feature in expected_features}
-
     df = pd.DataFrame([final_row], columns=expected_features)
 
+    # On force enfin les types reels du schema d'entree pour eviter les
+    # erreurs de validation de schema cote MLflow.
     for feature in expected_features:
         if feature in INTEGER_FEATURES:
             df[feature] = df[feature].astype("int64")

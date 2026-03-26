@@ -1,10 +1,9 @@
+from __future__ import annotations
+
 from app.ml.predictor import predict_attrition
+from app.ml.preprocess import build_model_features
 
 
-def get_prediction(age: int, monthly_income: float, job_level: int) -> dict:
-    prediction, probability = predict_attrition(age, monthly_income, job_level)
-
-    return {
-        "prediction": prediction,
-        "probability": probability
-    }
+def get_prediction(payload: dict) -> dict:
+    model_input = build_model_features(payload)
+    return predict_attrition(model_input)

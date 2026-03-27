@@ -20,4 +20,4 @@ COPY pyproject.toml README.md ./
 
 EXPOSE 8000
 
-CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT}"]
+CMD ["sh", "-c", "python scripts/create_db.py && uvicorn app.main:app --host 0.0.0.0 --port ${PORT}"]

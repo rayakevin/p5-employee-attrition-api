@@ -35,11 +35,21 @@ def compute_model_score(model, metadata: dict, model_input: pd.DataFrame) -> flo
     """
     score_method = metadata.get("score_method", "predict")
 
-    if score_method == "decision_function" and hasattr(model, "decision_function"):
+    if score_method == "decision_function":
+        if not hasattr(model, "decision_function"):
+            raise RuntimeError(
+                "Le modele charge ne supporte pas `decision_function` alors que "
+                "la metadata l'exige. Le flavor MLflow charge est probablement incorrect."
+            )
         raw_score = model.decision_function(model_input)
         return float(raw_score[0])
 
-    if score_method == "predict_proba" and hasattr(model, "predict_proba"):
+    if score_method == "predict_proba":
+        if not hasattr(model, "predict_proba"):
+            raise RuntimeError(
+                "Le modele charge ne supporte pas `predict_proba` alors que "
+                "la metadata l'exige."
+            )
         raw_score = model.predict_proba(model_input)
         return float(raw_score[0][1])
 

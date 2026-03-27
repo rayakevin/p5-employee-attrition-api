@@ -47,3 +47,6 @@ temp/
 
 # Local databases
 *.db
+
+# Generated documentation exports
+docs/p5_mode_operatoire_complet.html

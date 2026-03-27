@@ -1,15 +1,66 @@
 name: CD
 
 on:
+  push:
+    branches:
+      - main
   workflow_dispatch:
 
 jobs:
-  deploy:
+  deploy-to-hf-space:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          lfs: true
 
-      - name: Deployment placeholder
-        run: echo "CD pipeline will be implemented later (Docker / Hugging Face / production)."
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          push: false
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Prepare Space repository content
+        run: |
+          mkdir -p hf-space-sync
+          rsync -av --delete \
+            --exclude '.git/' \
+            --exclude '.github/' \
+            --exclude '.venv/' \
+            --exclude '.pytest_cache/' \
+            --exclude 'docs/' \
+            --exclude 'tests/' \
+            --exclude 'tmp/' \
+            --exclude 'temp/' \
+            --exclude '*.db' \
+            . hf-space-sync/
+          cp deploy/huggingface/README.md hf-space-sync/README.md
+
+      - name: Push to Hugging Face Space
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          HF_USERNAME: ${{ vars.HF_USERNAME }}
+          HF_SPACE_NAME: ${{ vars.HF_SPACE_NAME }}
+        run: |
+          test -n "$HF_TOKEN"
+          test -n "$HF_USERNAME"
+          test -n "$HF_SPACE_NAME"
+          cd hf-space-sync
+          git init
+          git checkout -b main
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .
+          git commit -m "Deploy from GitHub Actions"
+          git push --force https://$HF_USERNAME:$HF_TOKEN@huggingface.co/spaces/$HF_USERNAME/$HF_SPACE_NAME main

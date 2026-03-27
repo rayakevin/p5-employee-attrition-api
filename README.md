@@ -77,6 +77,62 @@ Stop PostgreSQL when finished:
 docker compose down
 ```
 
+## Local Docker stack
+
+Build and run the full local stack with Docker:
+
+```powershell
+docker compose up -d --build postgres api
+```
+
+If the PostgreSQL volume is empty, initialize the schema and source data first:
+
+```powershell
+$env:P5_DATABASE_URL="postgresql+psycopg://postgres:postgres@127.0.0.1:5433/p5_attrition"
+uv run python scripts/create_db.py
+uv run python scripts/seed_data.py
+```
+
+API endpoint:
+
+```text
+http://127.0.0.1:8000
+```
+
+Healthcheck:
+
+```powershell
+Invoke-RestMethod -Method Get -Uri http://127.0.0.1:8000/health
+```
+
+Stop the API and PostgreSQL containers:
+
+```powershell
+docker compose down
+```
+
+Note:
+if port `8000` is already occupied on your machine, update the host-side port mapping in `docker-compose.yml`.
+
+## Continuous Deployment
+
+The CD workflow now deploys the project to a Hugging Face Docker Space:
+
+- it validates the Docker build from the repository
+- it prepares a Hugging Face Space-compatible repository payload
+- it pushes the application to the target Space on pushes to `main`
+- it also remains callable manually through `workflow_dispatch`
+
+Required GitHub configuration:
+
+- repository secret: `HF_TOKEN`
+- repository variable: `HF_USERNAME`
+- repository variable: `HF_SPACE_NAME`
+
+The Space-specific `README.md` used for deployment lives in:
+
+- `deploy/huggingface/README.md`
+
 ## Branching strategy
 
 Main branches and feature branches will follow a naming convention such as:

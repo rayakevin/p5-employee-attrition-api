@@ -10,6 +10,7 @@ import json
 from pathlib import Path
 
 import mlflow.pyfunc
+import mlflow.sklearn
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 ARTIFACTS_DIR = PROJECT_ROOT / "artifacts" / "model"
@@ -42,10 +43,19 @@ def resolve_model_path(model_uri: str) -> Path:
 
 
 def load_mlflow_model():
-    """Charge le modèle MLflow et renvoie aussi sa metadata synchronisée."""
+    """Charge le modèle MLflow et renvoie aussi sa metadata synchronisée.
+
+    On privilégie ici le flavor scikit-learn quand il est disponible afin de
+    conserver l'accès à des méthodes comme `decision_function` ou
+    `predict_proba`, nécessaires pour reconstruire un score cohérent avec la
+    metadata du projet. En repli, on utilise le flavor pyfunc standard.
+    """
     metadata = load_model_metadata()
     model_path = resolve_model_path(metadata["mlflow_model_uri"])
     metadata["mlflow_model_uri"] = str(model_path.resolve())
 
-    model = mlflow.pyfunc.load_model(str(model_path))
+    try:
+        model = mlflow.sklearn.load_model(str(model_path))
+    except Exception:
+        model = mlflow.pyfunc.load_model(str(model_path))
     return model, metadata

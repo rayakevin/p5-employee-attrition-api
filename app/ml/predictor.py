@@ -25,6 +25,28 @@ def get_loaded_model():
     return _MODEL, _MODEL_METADATA
 
 
+def compute_model_score(model, metadata: dict, model_input: pd.DataFrame) -> float:
+    """Calcule un score cohérent avec la méthode décrite dans la metadata.
+
+    Cas gérés :
+    - `decision_function` pour les modèles marginaux comme `LinearSVC`
+    - `predict_proba` pour les modèles probabilistes
+    - repli sur `predict` si aucune méthode de score dédiée n'est disponible
+    """
+    score_method = metadata.get("score_method", "predict")
+
+    if score_method == "decision_function" and hasattr(model, "decision_function"):
+        raw_score = model.decision_function(model_input)
+        return float(raw_score[0])
+
+    if score_method == "predict_proba" and hasattr(model, "predict_proba"):
+        raw_score = model.predict_proba(model_input)
+        return float(raw_score[0][1])
+
+    raw_score = model.predict(model_input)
+    return float(raw_score[0])
+
+
 def predict_attrition(model_input: pd.DataFrame) -> dict:
     """Produit une prédiction métier à partir des features préparées.
 
@@ -34,8 +56,7 @@ def predict_attrition(model_input: pd.DataFrame) -> dict:
     model, metadata = get_loaded_model()
     threshold = metadata["threshold"]
 
-    raw_pred = model.predict(model_input)
-    score = float(raw_pred[0])
+    score = compute_model_score(model, metadata, model_input)
     prediction = int(score >= threshold)
 
     return {

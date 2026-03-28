@@ -14,6 +14,7 @@ attendu par le modele exporte dans MLflow. La logique principale consiste a :
 import json
 import math
 from pathlib import Path
+import unicodedata
 
 import pandas as pd
 
@@ -24,42 +25,55 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 ARTIFACTS_DIR = PROJECT_ROOT / "artifacts" / "model"
 PREPROCESSING_REFERENCE_PATH = ARTIFACTS_DIR / "preprocessing_reference.json"
 
+# Les valeurs conseillees cote API sont les libelles metier issus des CSV bruts.
+# Certains alias anglais sont conserves pour ne pas casser les appels historiques.
 GENRE_MAPPING = {
     "M": 1,
-    "MALE": 1,
     "HOMME": 1,
+    "MALE": 1,
     "F": 0,
-    "FEMALE": 0,
     "FEMME": 0,
+    "FEMALE": 0,
 }
 
 STATUT_MARITAL_MAPPING = {
-    "SINGLE": "Celibataire",
-    "CELIBATAIRE": "Celibataire",
-    "CÉLIBATAIRE": "Celibataire",
-    "MARRIED": "Marie(e)",
-    "MARIE(E)": "Marie(e)",
-    "MARIÉ(E)": "Marie(e)",
-    "DIVORCED": "Divorce(e)",
-    "DIVORCE(E)": "Divorce(e)",
-    "DIVORCÉ(E)": "Divorce(e)",
+    "CELIBATAIRE": "Célibataire",
+    "SINGLE": "Célibataire",
+    "MARIE(E)": "Marié(e)",
+    "MARRIED": "Marié(e)",
+    "DIVORCE(E)": "Divorcé(e)",
+    "DIVORCED": "Divorcé(e)",
 }
 
 DEPARTEMENT_MAPPING = {
+    "COMMERCIAL": "Commercial",
+    "CONSULTING": "Consulting",
+    "RESSOURCES HUMAINES": "Ressources Humaines",
     "SALES": "Commercial",
     "RESEARCH & DEVELOPMENT": "Consulting",
     "HUMAN RESOURCES": "Ressources Humaines",
 }
 
 FREQUENCE_DEPLACEMENT_MAPPING = {
+    "AUCUN": "Aucun",
+    "FREQUENT": "Frequent",
+    "OCCASIONNEL": "Occasionnel",
     "NON-TRAVEL": "Aucun",
     "TRAVEL_FREQUENTLY": "Frequent",
     "TRAVEL_RARELY": "Occasionnel",
 }
 
 POSTE_MAPPING = {
-    "SALES EXECUTIVE": "Cadre Commercial",
+    "ASSISTANT DE DIRECTION": "Assistant de Direction",
+    "CADRE COMMERCIAL": "Cadre Commercial",
+    "CONSULTANT": "Consultant",
+    "DIRECTEUR TECHNIQUE": "Manager",
     "MANAGER": "Manager",
+    "REPRESENTANT COMMERCIAL": "Cadre Commercial",
+    "RESSOURCES HUMAINES": "Autre",
+    "SENIOR MANAGER": "Senior Manager",
+    "TECH LEAD": "Tech Lead",
+    "SALES EXECUTIVE": "Cadre Commercial",
     "RESEARCH SCIENTIST": "Autre",
     "LABORATORY TECHNICIAN": "Tech Lead",
     "HUMAN RESOURCES": "Autre",
@@ -70,12 +84,30 @@ POSTE_MAPPING = {
 }
 
 DOMAINE_ETUDE_MAPPING = {
+    "AUTRE": "Autre",
+    "ENTREPREUNARIAT": "Entrepreunariat",
+    "INFRA & CLOUD": "Infra & Cloud",
+    "MARKETING": "Marketing",
+    "RESSOURCES HUMAINES": "Autre",
+    "TRANSFORMATION DIGITALE": "Transformation Digitale",
     "LIFE SCIENCES": "Autre",
     "MEDICAL": "Autre",
-    "MARKETING": "Marketing",
     "TECHNICAL DEGREE": "Infra & Cloud",
     "HUMAN RESOURCES": "Autre",
     "OTHER": "Autre",
+}
+
+BINARY_FLAG_MAPPING = {
+    "OUI": 1,
+    "NON": 0,
+    "Y": 1,
+    "YES": 1,
+    "N": 0,
+    "NO": 0,
+    "TRUE": 1,
+    "FALSE": 0,
+    "1": 1,
+    "0": 0,
 }
 
 INTEGER_FEATURES = {
@@ -116,6 +148,29 @@ def safe_divide(numerator: float, denominator: float) -> float:
     return numerator / denominator
 
 
+def repair_common_mojibake(value: str) -> str:
+    """Tente de reparer un texte UTF-8 decode comme latin1.
+
+    Le modele exporte contient des noms de colonnes avec accents mal encodes
+    dans la metadata. Cette etape permet de rapprocher les libelles issus des
+    CSV bruts des colonnes reelles du modele.
+    """
+    try:
+        return value.encode("latin1").decode("utf-8")
+    except (UnicodeEncodeError, UnicodeDecodeError):
+        return value
+
+
+def canonicalize_text(value: str) -> str:
+    """Produit une cle de comparaison stable pour les libelles texte."""
+    repaired = repair_common_mojibake(str(value)).strip()
+    normalized = unicodedata.normalize("NFKD", repaired)
+    without_accents = "".join(
+        char for char in normalized if not unicodedata.combining(char)
+    )
+    return without_accents.upper()
+
+
 def load_preprocessing_reference() -> dict:
     """Charge les references de preprocessing calculees a l'entrainement.
 
@@ -138,18 +193,19 @@ def load_preprocessing_reference() -> dict:
 def regroup_poste(raw_poste: str, poste_mapping: dict[str, str]) -> str:
     """Ramene un poste metier vers une categorie connue du modele."""
     mapped_poste = poste_mapping.get(raw_poste, raw_poste)
-    return POSTE_MAPPING.get(mapped_poste.strip().upper(), mapped_poste)
+    return POSTE_MAPPING.get(canonicalize_text(mapped_poste), mapped_poste)
 
 
 def regroup_domaine_etude(raw_domain: str, domain_mapping: dict[str, str]) -> str:
     """Ramene un domaine d'etude vers une categorie connue du modele."""
     mapped_domain = domain_mapping.get(raw_domain, raw_domain)
-    return DOMAINE_ETUDE_MAPPING.get(mapped_domain.strip().upper(), mapped_domain)
+    return DOMAINE_ETUDE_MAPPING.get(canonicalize_text(mapped_domain), mapped_domain)
 
 
 def normalize_string_category(value: str, mapping: dict[str, str]) -> str:
     """Normalise une chaine metier selon un dictionnaire de correspondance."""
-    return mapping.get(value.strip().upper(), value.strip())
+    cleaned_value = value.strip()
+    return mapping.get(canonicalize_text(cleaned_value), cleaned_value)
 
 
 def normalize_genre(value: str | int) -> int:
@@ -157,10 +213,39 @@ def normalize_genre(value: str | int) -> int:
     if isinstance(value, (int, float)):
         return int(value)
 
-    normalized = GENRE_MAPPING.get(value.strip().upper())
+    normalized = GENRE_MAPPING.get(canonicalize_text(value))
     if normalized is None:
         raise ValueError(f"Genre non supporte pour la prediction: {value}")
     return normalized
+
+
+def normalize_binary_flag(value: str | int | bool, field_name: str) -> int:
+    """Normalise un indicateur binaire vers 0 ou 1."""
+    if isinstance(value, bool):
+        return int(value)
+    if isinstance(value, (int, float)):
+        if int(value) in {0, 1}:
+            return int(value)
+        raise ValueError(f"Valeur binaire non supportee pour {field_name}: {value}")
+
+    normalized = BINARY_FLAG_MAPPING.get(canonicalize_text(value))
+    if normalized is None:
+        raise ValueError(f"Valeur binaire non supportee pour {field_name}: {value}")
+    return normalized
+
+
+def resolve_expected_feature_name(
+    expected_features: list[str], prefix: str, category: str
+) -> str | None:
+    """Retrouve le vrai nom de colonne du modele malgre les ecarts d'encodage."""
+    expected_key = canonicalize_text(category)
+    for feature in expected_features:
+        if not feature.startswith(prefix):
+            continue
+        feature_label = feature.removeprefix(prefix)
+        if canonicalize_text(feature_label) == expected_key:
+            return feature
+    return None
 
 
 def compute_distance_class(distance: float) -> int:
@@ -202,19 +287,29 @@ def build_model_features(payload: dict) -> pd.DataFrame:
         payload["frequence_deplacement"], FREQUENCE_DEPLACEMENT_MAPPING
     )
     poste_regroupe = regroup_poste(payload["poste"], poste_mapping)
-    domaine_etude_regroupe = regroup_domaine_etude(payload["domaine_etude"], domaine_mapping)
+    domaine_etude_regroupe = regroup_domaine_etude(
+        payload["domaine_etude"], domaine_mapping
+    )
 
     # Si une categorie reconstituee n'existe pas dans le schema final, on
     # bascule vers "Autre" pour rester compatible avec le modele exporte.
-    poste_col = f"poste_regroupe_{poste_regroupe}"
-    if poste_col not in expected_features:
+    poste_col = resolve_expected_feature_name(
+        expected_features, "poste_regroupe_", poste_regroupe
+    )
+    if poste_col is None:
         poste_regroupe = "Autre"
-        poste_col = f"poste_regroupe_{poste_regroupe}"
+        poste_col = resolve_expected_feature_name(
+            expected_features, "poste_regroupe_", poste_regroupe
+        )
 
-    domain_col = f"domaine_etude_regroupe_{domaine_etude_regroupe}"
-    if domain_col not in expected_features:
+    domain_col = resolve_expected_feature_name(
+        expected_features, "domaine_etude_regroupe_", domaine_etude_regroupe
+    )
+    if domain_col is None:
         domaine_etude_regroupe = "Autre"
-        domain_col = f"domaine_etude_regroupe_{domaine_etude_regroupe}"
+        domain_col = resolve_expected_feature_name(
+            expected_features, "domaine_etude_regroupe_", domaine_etude_regroupe
+        )
 
     niveau_key = str(payload["niveau_hierarchique_poste"])
     mediane_niveau = float(
@@ -280,7 +375,9 @@ def build_model_features(payload: dict) -> pd.DataFrame:
         "satisfaction_employee_equipe": payload["satisfaction_employee_equipe"],
         "satisfaction_employee_equilibre_pro_perso": payload["satisfaction_employee_equilibre_pro_perso"],
         "note_evaluation_actuelle": payload["note_evaluation_actuelle"],
-        "heure_supplementaires": payload["heure_supplementaires"],
+        "heure_supplementaires": normalize_binary_flag(
+            payload["heure_supplementaires"], "heure_supplementaires"
+        ),
         "augementation_salaire_precedente": payload["augementation_salaire_precedente"],
         "nombre_participation_pee": payload["nombre_participation_pee"],
         "nb_formations_suivies": payload["nb_formations_suivies"],
@@ -292,7 +389,9 @@ def build_model_features(payload: dict) -> pd.DataFrame:
         "annees_dans_le_poste_actuel_log": safe_log1p(payload["annees_dans_le_poste_actuel"]),
         "annees_depuis_la_derniere_promotion_log": safe_log1p(payload["annees_depuis_la_derniere_promotion"]),
         "annes_sous_responsable_actuel_log": safe_log1p(payload["annes_sous_responsable_actuel"]),
-        "distance_domicile_travail_classe": compute_distance_class(payload["distance_domicile_travail"]),
+        "distance_domicile_travail_classe": compute_distance_class(
+            payload["distance_domicile_travail"]
+        ),
         "ratio_anciennete_poste": ratio_anciennete_poste,
         "ratio_anciennete_manager": ratio_anciennete_manager,
         "ratio_experience_entreprise": ratio_experience_entreprise,
@@ -323,19 +422,25 @@ def build_model_features(payload: dict) -> pd.DataFrame:
         elif feature.startswith("domaine_etude_regroupe_"):
             row.setdefault(feature, 0)
 
-    marital_col = f"statut_marital_{statut_marital}"
-    department_col = f"departement_{departement}"
-    travel_col = f"frequence_deplacement_{frequence_deplacement}"
+    marital_col = resolve_expected_feature_name(
+        expected_features, "statut_marital_", statut_marital
+    )
+    department_col = resolve_expected_feature_name(
+        expected_features, "departement_", departement
+    )
+    travel_col = resolve_expected_feature_name(
+        expected_features, "frequence_deplacement_", frequence_deplacement
+    )
 
-    if marital_col in expected_features:
+    if marital_col is not None:
         row[marital_col] = 1
-    if department_col in expected_features:
+    if department_col is not None:
         row[department_col] = 1
-    if travel_col in expected_features:
+    if travel_col is not None:
         row[travel_col] = 1
-    if poste_col in expected_features:
+    if poste_col is not None:
         row[poste_col] = 1
-    if domain_col in expected_features:
+    if domain_col is not None:
         row[domain_col] = 1
 
     # Le DataFrame final respecte l'ordre exact attendu par le modele.

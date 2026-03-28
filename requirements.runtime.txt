@@ -1,0 +1,13 @@
+fastapi==0.135.2
+joblib==1.5.3
+mlflow==3.10.1
+numpy==2.4.3
+pandas==2.3.3
+pydantic==2.12.5
+pydantic-core==2.41.5
+pydantic-settings==2.13.1
+psycopg[binary]==3.3.3
+python-dotenv==1.2.2
+scikit-learn==1.8.0
+SQLAlchemy==2.0.48
+uvicorn==0.42.0

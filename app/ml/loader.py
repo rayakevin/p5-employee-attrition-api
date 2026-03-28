@@ -7,6 +7,7 @@ et de renvoyer à la fois le modèle chargé et sa metadata applicative.
 """
 
 import json
+import logging
 from pathlib import Path
 
 import mlflow.pyfunc
@@ -15,6 +16,7 @@ import mlflow.sklearn
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 ARTIFACTS_DIR = PROJECT_ROOT / "artifacts" / "model"
 METADATA_PATH = ARTIFACTS_DIR / "metadata.json"
+LOGGER = logging.getLogger(__name__)
 
 
 def load_model_metadata() -> dict:
@@ -56,6 +58,19 @@ def load_mlflow_model():
 
     try:
         model = mlflow.sklearn.load_model(str(model_path))
-    except Exception:
+        LOGGER.info(
+            "Modele MLflow charge avec le flavor sklearn depuis %s",
+            model_path,
+        )
+    except Exception as exc:
+        LOGGER.warning(
+            "Echec du chargement MLflow sklearn depuis %s: %s. Repli sur pyfunc.",
+            model_path,
+            exc,
+        )
         model = mlflow.pyfunc.load_model(str(model_path))
+        LOGGER.info(
+            "Modele MLflow charge avec le flavor pyfunc depuis %s",
+            model_path,
+        )
     return model, metadata

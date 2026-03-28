@@ -31,6 +31,9 @@ def resolve_model_path(model_uri: str) -> Path:
     On tente d'abord le chemin déclaré, puis des emplacements de repli
     cohérents avec les conventions d'export du projet.
     """
+    # La metadata peut contenir un chemin absolu issu d'un autre environnement
+    # (par exemple un export local Windows) ; on tente donc d'abord ce chemin,
+    # puis des chemins de repli relatifs au repository courant.
     model_path = Path(model_uri)
     if model_path.exists():
         return model_path
@@ -57,12 +60,18 @@ def load_mlflow_model():
     metadata["mlflow_model_uri"] = str(model_path.resolve())
 
     try:
+        # Le flavor sklearn est prefere car il expose directement les methodes
+        # natives du modele sous-jacent, comme `decision_function`.
         model = mlflow.sklearn.load_model(str(model_path))
         LOGGER.info(
             "Modele MLflow charge avec le flavor sklearn depuis %s",
             model_path,
         )
     except Exception as exc:
+        # Le fallback pyfunc garde l'API fonctionnelle, mais il peut masquer
+        # certaines methodes avancees. C'est pour cela que le predictor
+        # refuse ensuite un fallback silencieux si la metadata exige un score
+        # non disponible.
         LOGGER.warning(
             "Echec du chargement MLflow sklearn depuis %s: %s. Repli sur pyfunc.",
             model_path,

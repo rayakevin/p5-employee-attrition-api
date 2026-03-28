@@ -41,11 +41,11 @@ def build_valid_payload() -> dict:
     """Construit un payload metier complet pour le flux d'integration."""
     return {
         "age": 35,
-        "genre": "Male",
+        "genre": "Homme",
         "revenu_mensuel": 4500,
-        "statut_marital": "Married",
-        "departement": "Research & Development",
-        "poste": "Research Scientist",
+        "statut_marital": "Marié(e)",
+        "departement": "Consulting",
+        "poste": "Consultant",
         "nombre_experiences_precedentes": 3,
         "nombre_heures_travailless": 40,
         "annee_experience_totale": 12,
@@ -58,16 +58,16 @@ def build_valid_payload() -> dict:
         "satisfaction_employee_equipe": 3,
         "satisfaction_employee_equilibre_pro_perso": 2,
         "note_evaluation_actuelle": 4.0,
-        "heure_supplementaires": 1,
+        "heure_supplementaires": "Oui",
         "augementation_salaire_precedente": 12,
         "nombre_participation_pee": 1,
         "nb_formations_suivies": 3,
         "nombre_employee_sous_responsabilite": 0,
         "distance_domicile_travail": 12,
         "niveau_education": 3,
-        "domaine_etude": "Life Sciences",
-        "ayant_enfants": 1,
-        "frequence_deplacement": "Travel_Rarely",
+        "domaine_etude": "Infra & Cloud",
+        "ayant_enfants": "Oui",
+        "frequence_deplacement": "Occasionnel",
         "annees_depuis_la_derniere_promotion": 2,
         "annes_sous_responsable_actuel": 3,
     }
@@ -111,7 +111,7 @@ def test_predict_persists_linked_request_result_and_audit_log() -> None:
         assert len(prediction_request.audit_logs) == 1
         assert prediction_request.audit_logs[0].status_code == 200
         assert prediction_request.prediction_result.model_name == prediction_result.model_name
-        assert prediction_request.payload_json["departement"] == "Research & Development"
+        assert prediction_request.payload_json["departement"] == "Consulting"
 
 
 def test_predict_logs_technical_failure_without_result(monkeypatch) -> None:

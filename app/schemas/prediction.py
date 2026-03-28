@@ -15,11 +15,29 @@ class PredictionInput(BaseModel):
     """Decrit le payload metier attendu pour une prediction unitaire."""
 
     age: int = Field(..., ge=16, le=100, description="Age de l'employe")
-    genre: str = Field(..., description="Genre de l'employe")
+    genre: str = Field(
+        ...,
+        description="Genre de l'employe. Valeurs conseillees : Homme, Femme. "
+        "Les codes bruts M et F sont aussi acceptes.",
+    )
     revenu_mensuel: float = Field(..., gt=0, description="Revenu mensuel brut")
-    statut_marital: str = Field(..., description="Statut marital")
-    departement: str = Field(..., description="Departement")
-    poste: str = Field(..., description="Poste")
+    statut_marital: str = Field(
+        ...,
+        description="Statut marital. Valeurs issues des CSV bruts : "
+        "Célibataire, Marié(e), Divorcé(e).",
+    )
+    departement: str = Field(
+        ...,
+        description="Departement. Valeurs issues des CSV bruts : "
+        "Commercial, Consulting, Ressources Humaines.",
+    )
+    poste: str = Field(
+        ...,
+        description="Poste. Valeurs conseillees : Assistant de Direction, "
+        "Cadre Commercial, Consultant, Directeur Technique, Manager, "
+        "Représentant Commercial, Ressources Humaines, Senior Manager, "
+        "Tech Lead.",
+    )
     nombre_experiences_precedentes: int = Field(..., ge=0, le=50)
     nombre_heures_travailless: float = Field(..., ge=0, le=100)
     annee_experience_totale: float = Field(..., ge=0, le=80)
@@ -32,16 +50,33 @@ class PredictionInput(BaseModel):
     satisfaction_employee_equipe: int = Field(..., ge=1, le=4)
     satisfaction_employee_equilibre_pro_perso: int = Field(..., ge=1, le=4)
     note_evaluation_actuelle: float = Field(..., ge=1, le=5)
-    heure_supplementaires: int = Field(..., ge=0, le=1)
+    heure_supplementaires: str | int | bool = Field(
+        ...,
+        description="Heures supplementaires. Valeurs conseillees : Oui, Non. "
+        "Les formats 1/0 et True/False restent acceptes.",
+    )
     augementation_salaire_precedente: float = Field(..., ge=0, le=100)
     nombre_participation_pee: int = Field(..., ge=0, le=20)
     nb_formations_suivies: int = Field(..., ge=0, le=50)
     nombre_employee_sous_responsabilite: int = Field(..., ge=0, le=500)
     distance_domicile_travail: float = Field(..., ge=0, le=500)
     niveau_education: int = Field(..., ge=1, le=10)
-    domaine_etude: str = Field(..., description="Domaine d'etude")
-    ayant_enfants: int = Field(..., ge=0, le=1)
-    frequence_deplacement: str = Field(..., description="Frequence de deplacement")
+    domaine_etude: str = Field(
+        ...,
+        description="Domaine d'etude. Valeurs issues des CSV bruts : Autre, "
+        "Entrepreunariat, Infra & Cloud, Marketing, Ressources Humaines, "
+        "Transformation Digitale.",
+    )
+    ayant_enfants: str | int | bool = Field(
+        ...,
+        description="Presence d'enfants. Valeurs conseillees : Oui, Non. "
+        "Les codes bruts Y/N et les formats 1/0 restent acceptes.",
+    )
+    frequence_deplacement: str = Field(
+        ...,
+        description="Frequence de deplacement. Valeurs issues des CSV bruts : "
+        "Aucun, Frequent, Occasionnel.",
+    )
     annees_depuis_la_derniere_promotion: float = Field(..., ge=0, le=80)
     annes_sous_responsable_actuel: float = Field(..., ge=0, le=80)
 
@@ -63,6 +98,23 @@ class PredictionInput(BaseModel):
         if not value:
             raise ValueError("La valeur ne peut pas etre vide.")
         return value
+
+    @field_validator("heure_supplementaires", "ayant_enfants", mode="before")
+    @classmethod
+    def validate_binary_flags(cls, value: str | int | bool) -> str | int | bool:
+        """Accepte les formats metier usuels avant normalisation ulterieure."""
+        if isinstance(value, bool):
+            return value
+        if isinstance(value, int):
+            if value not in {0, 1}:
+                raise ValueError("La valeur doit etre binaire : 0 ou 1.")
+            return value
+        if isinstance(value, str):
+            cleaned_value = value.strip()
+            if not cleaned_value:
+                raise ValueError("La valeur ne peut pas etre vide.")
+            return cleaned_value
+        raise TypeError("La valeur doit etre un booleen, un entier binaire ou une chaine.")
 
 
 class PredictionOutput(BaseModel):

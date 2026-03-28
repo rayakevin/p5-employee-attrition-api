@@ -1818,6 +1818,205 @@ Lecon a retenir :
 
 - en validation locale, il faut toujours verifier que l'on parle bien a la bonne instance HTTP avant d'interpreter un resultat metier.
 
+## 19. Mise a jour - Deploiement Docker et Hugging Face Spaces
+
+Cette section ajoute le retour d'experience de la phase de conteneurisation et de deploiement distant.
+
+L'objectif n'etait plus seulement de faire fonctionner l'API en local, mais :
+
+- de construire une image Docker de l'API ;
+- de la lancer localement avec la base PostgreSQL ;
+- de remplacer le faux CD par un vrai deploiement vers Hugging Face Spaces ;
+- puis de debugger les ecarts entre local et distant.
+
+### 19.1 Packaging Docker de l'API
+
+Objectif :
+
+fabriquer un conteneur autonome capable de lancer l'API en dehors du poste de developpement.
+
+Fichiers crees ou modifies :
+
+- `Dockerfile`
+- `.dockerignore`
+- `docker-compose.yml`
+- `requirements.runtime.txt`
+- `README.md`
+
+Commandes utiles :
+
+```powershell
+docker compose build api
+docker compose up -d --build postgres api
+docker compose ps
+Invoke-RestMethod -Method Get -Uri "http://127.0.0.1:8000/health"
+docker compose down
+```
+
+Pourquoi ce packaging :
+
+- `Dockerfile` permet de reproduire le runtime sur une machine distante ;
+- `.dockerignore` evite d'envoyer des fichiers inutiles dans le contexte de build ;
+- `docker-compose.yml` permet de valider rapidement le couple `api + postgres` ;
+- `requirements.runtime.txt` separe les dependances de production des dependances de dev et de test.
+
+Resultat obtenu :
+
+- l'image Docker de l'API est bien construite ;
+- le conteneur API demarre correctement ;
+- le endpoint `/health` repond ;
+- l'API conteneurisee repond aussi sur `/api/v1/predict`.
+
+### 19.2 Remplacement du CD placeholder
+
+Au depart, le workflow CD ne faisait qu'un `echo`.
+
+Le CD a ete remplace par un vrai pipeline qui :
+
+- valide le build Docker ;
+- prepare un depot compatible Hugging Face Spaces ;
+- pousse le contenu vers un Space Docker cible.
+
+Fichiers importants :
+
+- `.github/workflows/cd.yml`
+- `deploy/huggingface/README.md`
+
+Configuration GitHub necessaire :
+
+- secret `HF_TOKEN`
+- variable `HF_USERNAME`
+- variable `HF_SPACE_NAME`
+
+Lecon a retenir :
+
+- un "CD" qui ne fait que reserver une place dans le depot n'est pas un vrai deploiement ;
+- un vrai workflow de deploiement doit au minimum construire, publier ou synchroniser, puis permettre un controle du resultat.
+
+### 19.3 Choix de Hugging Face Spaces
+
+Le choix retenu pour le deploiement distant a ete :
+
+- un Space Hugging Face de type `Docker`
+- et non un Space `Streamlit`
+
+Pourquoi :
+
+- le projet expose avant tout une API FastAPI ;
+- le runtime doit rester librement parametrable ;
+- la cible HF sert ici de preuve de deploiement distant plus que d'interface front.
+
+Point important :
+
+- le P5 reste valide techniquement avec PostgreSQL local ;
+- le Space HF ne peut pas utiliser la base PostgreSQL locale du poste de developpement.
+
+### 19.4 Premiere erreur distante : base non initialisee
+
+Symptome :
+
+- le Space repondait sur `/` ;
+- mais `/api/v1/predict` echouait avec une erreur SQLite du type `no such table: prediction_requests`.
+
+Cause :
+
+- le conteneur demarrait bien l'API ;
+- mais aucun schema n'etait cree au boot dans l'environnement distant.
+
+Resolution :
+
+- le `Dockerfile` a ete modifie pour executer `python scripts/create_db.py` avant `uvicorn`.
+
+Lecon a retenir :
+
+- une API qui persiste en base doit initialiser son schema dans l'environnement de deploiement si aucune migration ou base preexistante n'est garantie.
+
+### 19.5 Deuxieme erreur distante : score incoherent a `0.0`
+
+Symptome :
+
+- l'API repondait ;
+- mais le retour ressemblait a :
+
+```json
+{"prediction":0,"score":0.0,"threshold":0.1138,"model_version":"0.1.0","model_name":"linear_svc_attrition"}
+```
+
+Pourquoi ce resultat etait suspect :
+
+- la metadata du modele indiquait `score_method = decision_function` ;
+- mais un score fixe a `0.0` ressemblait plutot a une classe binaire issue de `predict()`.
+
+Cause reelle identifiee :
+
+- la logique de prediction utilisait initialement `model.predict()` pour calculer le `score` ;
+- on comparait donc un seuil continu a une sortie binaire ;
+- localement, la vraie sortie `decision_function` du modele pour le payload de test etait en fait voisine de `-18.58`.
+
+Corrections appliquees :
+
+- chargement prioritaire du flavor `mlflow.sklearn` ;
+- ajout d'une fonction `compute_model_score()` ;
+- prise en charge explicite de `decision_function`, `predict_proba`, puis repli `predict` ;
+- ajout de tests unitaires dedies.
+
+Lecon a retenir :
+
+- la methode de score du modele doit etre alignee avec la metadata exportee ;
+- il ne faut pas confondre une classe predite et un score de decision.
+
+### 19.6 Troisieme etape de debug : ne plus masquer les erreurs de flavor
+
+Une fois le code corrige, le Space continuait encore parfois a renvoyer un score incoherent pendant les rebuilds.
+
+L'analyse a montre qu'il fallait distinguer deux cas :
+
+- le bon code n'est pas encore servi parce que Hugging Face affiche l'ancienne version pendant le build ;
+- ou le bon code est bien present, mais le chargement du modele retombe silencieusement sur le flavor `pyfunc`.
+
+Corrections de debug ajoutees :
+
+- logs explicites dans `app/ml/loader.py` pour savoir si le flavor charge est `sklearn` ou `pyfunc` ;
+- erreur explicite dans `app/ml/predictor.py` si la metadata exige `decision_function` alors que le modele charge ne l'expose pas.
+
+Pourquoi cette correction est importante :
+
+- un mauvais fallback silencieux peut produire une reponse fausse mais "propre" ;
+- une erreur explicite est preferable a un resultat metier trompeur.
+
+### 19.7 Problemes de rebuild Hugging Face
+
+Retour d'experience concret :
+
+- les rebuilds Hugging Face Spaces peuvent etre tres longs ;
+- il est arrive de devoir attendre des durees anormalement longues avant un retour a l'etat `Running` ;
+- pendant la phase `building`, HF sert encore l'ancienne version ;
+- l'heure visible dans l'interface n'est pas toujours un indicateur fiable de la revision effectivement servie.
+
+Actions entreprises pour limiter ce probleme :
+
+- creation de `requirements.runtime.txt` pour ne garder que les dependances utiles au runtime de l'API ;
+- suppression des dependances de test et de `streamlit` du conteneur de production ;
+- conservation de `requirements.txt` pour la CI et le developpement.
+
+Lecon a retenir :
+
+- une cible de deploiement lente peut rester acceptable pour une preuve de deploiement, mais pas pour une boucle de dev rapide ;
+- il faut donc conserver un environnement local robuste pour les validations serieuses.
+
+### 19.8 Positionnement final de Hugging Face dans le projet
+
+Dans le cadre du P5, la bonne lecture est la suivante :
+
+- PostgreSQL local reste la reference pour la demonstration technique complete ;
+- Hugging Face Spaces sert de preuve de deploiement distant ;
+- l'environnement distant n'est pas la reference principale pour l'audit, la persistance ou le debug fin.
+
+En pratique :
+
+- le local sert a valider la chaine complete ;
+- le Space sert a montrer que l'application est deployable et accessible a distance.
+
 ### Annexe K - `app/db/base.py`
 
 ```python

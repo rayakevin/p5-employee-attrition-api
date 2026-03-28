@@ -16,7 +16,11 @@ _MODEL_METADATA = None
 
 
 def get_loaded_model():
-    """Charge le modèle une seule fois puis le réutilise en mémoire."""
+    """Charge le modèle une seule fois puis le réutilise en mémoire.
+
+    Le cache en module evite de recharger l'artefact MLflow a chaque requete,
+    ce qui reduit fortement le temps de reponse et le bruit dans les logs.
+    """
     global _MODEL, _MODEL_METADATA
 
     if _MODEL is None or _MODEL_METADATA is None:
@@ -66,6 +70,8 @@ def predict_attrition(model_input: pd.DataFrame) -> dict:
     model, metadata = get_loaded_model()
     threshold = metadata["threshold"]
 
+    # On calcule d'abord le score selon la methode declaree dans la metadata,
+    # puis on applique la regle de decision retenue pour ce projet.
     score = compute_model_score(model, metadata, model_input)
     prediction = int(score >= threshold)
 

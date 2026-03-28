@@ -122,6 +122,7 @@ The CD workflow now deploys the project to a Hugging Face Docker Space:
 - it prepares a Hugging Face Space-compatible repository payload
 - it pushes the application to the target Space on pushes to `main`
 - it also remains callable manually through `workflow_dispatch`
+- the runtime container uses `requirements.runtime.txt` to avoid shipping test and UI-only dependencies into production
 
 Required GitHub configuration:
 

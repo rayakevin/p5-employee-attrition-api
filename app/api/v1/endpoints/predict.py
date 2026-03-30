@@ -14,6 +14,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
+from app.core.security import require_api_key
 from app.schemas.prediction import (
     BatchPredictionInput,
     BatchPredictionOutput,
@@ -34,6 +35,7 @@ router = APIRouter()
 @router.post("/predict", response_model=PredictionOutput)
 def predict(
     data: PredictionInput,
+    _api_key: str = Depends(require_api_key),
     db: Session = Depends(get_db),
 ) -> PredictionOutput:
     """Execute une prediction unitaire a partir d'un payload metier."""
@@ -50,7 +52,10 @@ def predict(
 
 
 @router.post("/predict/batch", response_model=BatchPredictionOutput)
-def predict_batch(data: BatchPredictionInput) -> BatchPredictionOutput:
+def predict_batch(
+    data: BatchPredictionInput,
+    _api_key: str = Depends(require_api_key),
+) -> BatchPredictionOutput:
     """Execute un scoring batch sans persistance technique."""
     try:
         results = get_batch_predictions(
@@ -69,7 +74,10 @@ def predict_batch(data: BatchPredictionInput) -> BatchPredictionOutput:
 
 
 @router.post("/explain", response_model=PredictionExplanationOutput)
-def explain(data: PredictionInput) -> PredictionExplanationOutput:
+def explain(
+    data: PredictionInput,
+    _api_key: str = Depends(require_api_key),
+) -> PredictionExplanationOutput:
     """Retourne une decomposition locale du score pour un individu."""
     try:
         result = get_prediction_explanation(data.model_dump())

@@ -22,6 +22,7 @@ DEFAULT_API_BASE_URL = os.getenv(
     "P5_API_BASE_URL",
     "https://rayakevin-p5-employee-attrition-api.hf.space",
 )
+DEFAULT_API_KEY = os.getenv("P5_API_KEY", "p5-demo-local-key")
 
 GENRES = ["Homme", "Femme"]
 STATUTS_MARITAUX = ["Célibataire", "Marié(e)", "Divorcé(e)"]
@@ -438,6 +439,7 @@ def call_prediction_api(api_base_url: str, payload: dict[str, Any]) -> dict[str,
     response = httpx.post(
         f"{api_base_url}/api/v1/predict",
         json=payload,
+        headers={"X-API-Key": DEFAULT_API_KEY},
         timeout=30.0,
     )
     response.raise_for_status()
@@ -449,6 +451,7 @@ def call_explain_api(api_base_url: str, payload: dict[str, Any]) -> dict[str, An
     response = httpx.post(
         f"{api_base_url}/api/v1/explain",
         json=payload,
+        headers={"X-API-Key": DEFAULT_API_KEY},
         timeout=30.0,
     )
     response.raise_for_status()
@@ -470,6 +473,7 @@ def call_batch_prediction_api(
             response = client.post(
                 f"{api_base_url}/api/v1/predict/batch",
                 json={"rows": chunk},
+                headers={"X-API-Key": DEFAULT_API_KEY},
             )
             response.raise_for_status()
             results.extend(response.json()["results"])

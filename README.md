@@ -170,6 +170,7 @@ Variable utile pour le portfolio Streamlit :
 
 ```env
 P5_API_BASE_URL=http://127.0.0.1:8000
+P5_API_KEY=p5-demo-local-key
 ```
 
 En deploiement distant, si `P5_DATABASE_URL` n'est pas defini, l'API utilise un fallback SQLite local au conteneur. Le projet configure ce fallback sur un chemin ecrivable pour Hugging Face Spaces.
@@ -227,6 +228,8 @@ Reponse attendue :
 - `POST /api/v1/predict`
 - `POST /api/v1/explain`
 - `POST /api/v1/predict/batch`
+
+Les routes metier `POST` sont protegees par une cle d'API transmise dans l'en-tete `X-API-Key`.
 
 ### 8.2 Valeurs conseillees pour les champs categoriels
 
@@ -294,6 +297,7 @@ $payload = @{
 Invoke-RestMethod `
   -Method Post `
   -Uri "http://127.0.0.1:8000/api/v1/predict" `
+  -Headers @{ "X-API-Key" = $env:P5_API_KEY } `
   -ContentType "application/json" `
   -Body $payload
 ```
@@ -316,6 +320,7 @@ Exemple de reponse :
 Invoke-RestMethod `
   -Method Post `
   -Uri "http://127.0.0.1:8000/api/v1/explain" `
+  -Headers @{ "X-API-Key" = $env:P5_API_KEY } `
   -ContentType "application/json" `
   -Body $payload
 ```
@@ -368,9 +373,33 @@ $batch = @{
 Invoke-RestMethod `
   -Method Post `
   -Uri "http://127.0.0.1:8000/api/v1/predict/batch" `
+  -Headers @{ "X-API-Key" = $env:P5_API_KEY } `
   -ContentType "application/json" `
   -Body $batch
 ```
+
+## 8.6 Authentification et securite
+
+Le projet implemente une authentification simple par cle d'API.
+
+Principe :
+
+- les routes publiques `GET /` et `GET /health` restent ouvertes ;
+- les routes metier `/predict`, `/explain` et `/predict/batch` exigent un en-tete `X-API-Key` ;
+- la valeur attendue est lue depuis `P5_API_KEY`.
+
+Pourquoi ce choix :
+
+- il repond au besoin pedagogique de controle d'acces ;
+- il reste facile a tester, a documenter et a deployer ;
+- il est compatible avec FastAPI et Swagger/OpenAPI.
+
+Bonnes pratiques retenues :
+
+- ne pas committer de secrets dans le code ;
+- passer les valeurs sensibles par variables d'environnement ou secrets GitHub ;
+- utiliser des valeurs distinctes entre local et deploiement distant ;
+- limiter l'exposition de la base et des variables de configuration.
 
 ## 9. Base de donnees et tracabilite
 
@@ -418,7 +447,24 @@ uv run pytest -q
 - preprocessing ;
 - persistance en base ;
 - seed des donnees source ;
-- endpoints batch.
+- endpoints batch ;
+- protection par cle d'API ;
+- contrat OpenAPI ;
+- parcours fonctionnels principaux.
+
+### 11.3 Generer un rapport de couverture
+
+En local :
+
+```powershell
+uv run pytest --cov=app --cov-report=term-missing --cov-report=html --cov-report=xml
+```
+
+Resultats :
+
+- rapport terminal pour lecture rapide ;
+- `htmlcov/index.html` pour une lecture detaillee ;
+- `coverage.xml` pour la CI.
 
 ## 12. Docker
 
@@ -536,6 +582,18 @@ Resume pratique :
 - `chore:` : maintenance
 - `test:` : tests
 - `ci:` : pipeline GitHub Actions
+
+### 16.3 Tags
+
+Le projet utilise egalement des tags Git pour figer des etapes importantes de livraison.
+
+Convention conseillee :
+
+- `v0.1.0`
+- `v0.2.0`
+- `v1.0.0`
+
+Un tag doit correspondre a un etat stable, testee et identifiable du projet.
 
 ## 17. Dependances
 

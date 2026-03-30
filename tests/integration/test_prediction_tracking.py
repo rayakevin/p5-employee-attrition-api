@@ -5,6 +5,7 @@ from sqlalchemy import create_engine, delete, select
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
+from app.core.config import settings
 from app.db.base import Base
 from app.db.models import ApiAuditLog, PredictionRequest, PredictionResult
 from app.db.session import get_db
@@ -35,6 +36,7 @@ def override_get_db():
 
 
 client = TestClient(app)
+AUTH_HEADERS = {settings.api_key_header_name: settings.api_key}
 
 
 def build_valid_payload() -> dict:
@@ -90,7 +92,7 @@ def test_predict_persists_linked_request_result_and_audit_log() -> None:
     set_test_db_override()
     reset_tracking_tables()
 
-    response = client.post("/api/v1/predict", json=build_valid_payload())
+    response = client.post("/api/v1/predict", json=build_valid_payload(), headers=AUTH_HEADERS)
 
     assert response.status_code == 200
 
@@ -125,7 +127,7 @@ def test_predict_logs_technical_failure_without_result(monkeypatch) -> None:
         fail_prediction,
     )
 
-    response = client.post("/api/v1/predict", json=build_valid_payload())
+    response = client.post("/api/v1/predict", json=build_valid_payload(), headers=AUTH_HEADERS)
 
     assert response.status_code == 500
 

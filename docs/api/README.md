@@ -18,6 +18,8 @@ Le code HTTP principal se trouve dans :
 
 ## 2. Endpoints exposés
 
+Les routes métier `POST` sont protégées par une clé d'API transmise dans l'en-tête `X-API-Key`.
+
 ### `GET /`
 
 Route de présence minimale. Elle confirme que l'application FastAPI est démarrée.
@@ -62,6 +64,11 @@ Cette route écrit aussi en base :
 - la requête reçue dans `prediction_requests` ;
 - le résultat métier dans `prediction_results` ;
 - un log technique dans `api_audit_logs`.
+
+Pré-requis d'accès :
+
+- en-tête `X-API-Key`
+- valeur lue depuis `P5_API_KEY`
 
 ### `POST /api/v1/explain`
 
@@ -174,7 +181,25 @@ Exemples :
 - problème de chargement du modèle ;
 - erreur technique lors d'un appel base ou d'une prédiction.
 
-## 7. Exemples d'utilisation
+## 7. Authentification et secrets
+
+Le projet implémente une authentification simple par clé d'API.
+
+Choix retenu :
+
+- adapté à un projet pédagogique ;
+- simple à déployer sur FastAPI et Hugging Face Spaces ;
+- visible dans la documentation OpenAPI ;
+- facile à tester automatiquement.
+
+Bonnes pratiques :
+
+- stocker `P5_API_KEY` en variable d'environnement ;
+- utiliser les secrets GitHub pour les déploiements ;
+- ne jamais committer une vraie clé de production ;
+- séparer autant que possible les secrets locaux, CI/CD et production.
+
+## 8. Exemples d'utilisation
 
 ### Exemple de prédiction unitaire
 
@@ -213,6 +238,7 @@ $payload = @{
 Invoke-RestMethod `
   -Method Post `
   -Uri "http://127.0.0.1:8000/api/v1/predict" `
+  -Headers @{ "X-API-Key" = $env:P5_API_KEY } `
   -ContentType "application/json" `
   -Body $payload
 ```
@@ -223,11 +249,12 @@ Invoke-RestMethod `
 Invoke-RestMethod `
   -Method Post `
   -Uri "http://127.0.0.1:8000/api/v1/explain" `
+  -Headers @{ "X-API-Key" = $env:P5_API_KEY } `
   -ContentType "application/json" `
   -Body $payload
 ```
 
-## 8. Points de vigilance
+## 9. Points de vigilance
 
 - Le portfolio Streamlit n'exécute pas le modèle lui-même : il passe par l'API.
 - Le batch n'écrit pas en base par conception.

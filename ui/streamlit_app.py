@@ -22,6 +22,7 @@ DEFAULT_API_BASE_URL = os.getenv(
     "P5_API_BASE_URL",
     "https://rayakevin-p5-employee-attrition-api.hf.space",
 )
+DEFAULT_API_KEY = os.getenv("P5_API_KEY", "p5-demo-local-key")
 
 GENRES = ["Homme", "Femme"]
 STATUTS_MARITAUX = ["Célibataire", "Marié(e)", "Divorcé(e)"]
@@ -150,6 +151,12 @@ def apply_styles() -> None:
     st.markdown(
         """
         <style>
+        header[data-testid="stHeader"] {
+            display: none;
+        }
+        .stAppToolbar {
+            display: none;
+        }
         .stApp {
             background:
                 radial-gradient(circle at top right, rgba(84, 112, 198, 0.10) 0%, transparent 28%),
@@ -167,7 +174,7 @@ def apply_styles() -> None:
         }
         .block-container {
             max-width: 1280px;
-            padding-top: 1.4rem;
+            padding-top: 0.75rem;
             padding-bottom: 2rem;
         }
         .hero-card, .panel-card, .metric-panel {
@@ -198,24 +205,26 @@ def apply_styles() -> None:
         }
         .hero-title {
             margin: 0 0 0.75rem 0;
-            font-size: 2.2rem;
-            line-height: 1.05;
+            font-size: 2.35rem;
+            line-height: 1.02;
             color: white;
         }
         .hero-copy {
             margin: 0;
-            max-width: 820px;
+            max-width: 860px;
             color: #c9d7ee;
-            font-size: 1rem;
+            font-size: 1.03rem;
+            line-height: 1.65;
         }
         .status-chip {
             display: inline-block;
-            padding: 0.35rem 0.7rem;
+            padding: 0.42rem 0.82rem;
             border-radius: 999px;
             background: rgba(96, 165, 250, 0.12);
             border: 1px solid rgba(96, 165, 250, 0.24);
             color: #dbeafe;
-            font-size: 0.82rem;
+            font-size: 0.84rem;
+            font-weight: 700;
             margin-right: 0.45rem;
             margin-bottom: 0.45rem;
         }
@@ -255,8 +264,26 @@ def apply_styles() -> None:
         div[data-testid="stMetricLabel"] {
             color: #93a3bf;
         }
-        div[data-testid="stTabs"] button {
+        div[data-testid="stTabs"] {
+            margin-top: 0.35rem;
+        }
+        div[data-testid="stTabs"] button[role="tab"] {
             border-radius: 999px;
+            background: rgba(20, 31, 52, 0.96);
+            color: #cbd5e1;
+            border: 1px solid rgba(96, 165, 250, 0.18);
+            font-weight: 700;
+            padding: 0.55rem 1rem;
+        }
+        div[data-testid="stTabs"] button[role="tab"][aria-selected="true"] {
+            background: linear-gradient(180deg, rgba(30, 58, 138, 0.78) 0%, rgba(29, 78, 216, 0.38) 100%);
+            color: #f8fafc;
+            border-color: rgba(147, 197, 253, 0.45);
+            box-shadow: 0 8px 24px rgba(37, 99, 235, 0.18);
+        }
+        div[data-testid="stTabs"] button[role="tab"]:hover {
+            color: #f8fafc;
+            border-color: rgba(147, 197, 253, 0.34);
         }
         [data-testid="stWidgetLabel"] p,
         label,
@@ -412,6 +439,7 @@ def call_prediction_api(api_base_url: str, payload: dict[str, Any]) -> dict[str,
     response = httpx.post(
         f"{api_base_url}/api/v1/predict",
         json=payload,
+        headers={"X-API-Key": DEFAULT_API_KEY},
         timeout=30.0,
     )
     response.raise_for_status()
@@ -423,6 +451,7 @@ def call_explain_api(api_base_url: str, payload: dict[str, Any]) -> dict[str, An
     response = httpx.post(
         f"{api_base_url}/api/v1/explain",
         json=payload,
+        headers={"X-API-Key": DEFAULT_API_KEY},
         timeout=30.0,
     )
     response.raise_for_status()
@@ -444,6 +473,7 @@ def call_batch_prediction_api(
             response = client.post(
                 f"{api_base_url}/api/v1/predict/batch",
                 json={"rows": chunk},
+                headers={"X-API-Key": DEFAULT_API_KEY},
             )
             response.raise_for_status()
             results.extend(response.json()["results"])
@@ -457,13 +487,12 @@ def render_header() -> None:
     st.markdown(
         """
         <div class="hero-card">
-            <p class="eyebrow">Portfolio P5 · Prediction API + Local Explanation</p>
-            <h1 class="hero-title">Attrition Risk Explorer</h1>
+            <p class="eyebrow">Portfolio P5 · Analyse du risque de départ</p>
+            <h1 class="hero-title">Explorer le risque d'attrition employé</h1>
             <p class="hero-copy">
-                Une interface portfolio inspirée des dashboards Streamlit modernes :
-                formulaire métier, appel API, scoring du modèle final et lecture
-                visuelle des facteurs qui poussent un individu vers un risque plus
-                fort ou plus faible.
+                Testez le modèle final sur des profils individuels ou sur un fichier
+                complet, obtenez une décision immédiatement exploitable et visualisez
+                les facteurs qui renforcent ou réduisent le risque de départ.
             </p>
         </div>
         """,
@@ -511,14 +540,16 @@ def render_context_panel() -> None:
     st.markdown(
         """
         <div class="panel-card">
-            <span class="status-chip">Frontend Streamlit</span>
-            <span class="status-chip">Backend FastAPI</span>
-            <span class="status-chip">Linear SVC final</span>
-            <span class="status-chip">Explication locale additive</span>
+            <span class="status-chip">Simulation de profils</span>
+            <span class="status-chip">Scoring en temps réel</span>
+            <span class="status-chip">Modèle final déployé</span>
+            <span class="status-chip">Lecture locale des facteurs</span>
             <p class="caption-soft" style="margin-top:0.7rem;">
-                L'écran reste aligné sur le modèle effectivement déployé. La prédiction
-                et l'explication locale passent toutes deux par l'API pour éviter les écarts
-                entre la démonstration portfolio et le runtime réel.
+                Le portfolio n'exécute pas le modèle lui-même. Il envoie les données
+                à l'API du projet, qui applique le vrai preprocessing, calcule la
+                prédiction et produit l'explication locale. Les résultats affichés ici
+                correspondent donc au comportement réel du service déployé, sans
+                décalage entre la démonstration visuelle et le moteur de scoring.
             </p>
         </div>
         """,
@@ -1013,8 +1044,16 @@ def render_batch_section(api_base_url: str) -> None:
     """Affiche le flux d'upload et d'analyse batch."""
     st.subheader("Analyse batch")
     st.caption(
-        "Chargez un fichier type `df_EDA.csv` pour scorer un ensemble d'employés, "
-        "visualiser les résultats globaux puis sélectionner un individu pour l'analyse locale."
+        "Chargez un fichier CSV contenant les colonnes attendues par le modèle pour "
+        "scorer un ensemble d'employés, visualiser les résultats globaux puis analyser "
+        "plus finement un individu."
+    )
+    st.info(
+        "Format attendu : un fichier CSV avec une ligne par employé et les mêmes colonnes "
+        "que le formulaire individuel, par exemple `age`, `genre`, `revenu_mensuel`, "
+        "`departement`, `poste`, `frequence_deplacement`, `heure_supplementaires`, "
+        "`annees_dans_l_entreprise`, `note_evaluation_actuelle`. "
+        "La colonne `id_employee` est facultative : si elle est absente, elle est générée automatiquement."
     )
 
     uploaded_file = st.file_uploader(

@@ -36,6 +36,9 @@ def compute_model_score(model, metadata: dict, model_input: pd.DataFrame) -> flo
     - `decision_function` pour les modèles marginaux comme `LinearSVC`
     - `predict_proba` pour les modèles probabilistes
     - repli sur `predict` si aucune méthode de score dédiée n'est disponible
+
+    L'objectif est de ne jamais confondre une classe prédite avec un score
+    continu, ce qui a été une source réelle de bug pendant le projet.
     """
     score_method = metadata.get("score_method", "predict")
 
@@ -66,6 +69,9 @@ def predict_attrition(model_input: pd.DataFrame) -> dict:
 
     Le modèle retourne ici un score brut. Ce score est comparé au seuil
     stocké dans la metadata afin de calculer la classe finale.
+
+    La réponse renvoyée reste volontairement simple pour l'API :
+    score, seuil, prédiction finale et identité du modèle utilisé.
     """
     model, metadata = get_loaded_model()
     threshold = metadata["threshold"]

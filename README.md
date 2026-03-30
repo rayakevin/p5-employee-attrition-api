@@ -1,116 +1,139 @@
 # P5 - API de prediction d'attrition des employes
 
-## 1. Presentation du projet
+## 1. Presentation
 
-Ce projet correspond a la mise en production d'un modele de machine learning construit dans le cadre du Projet 4, puis industrialise dans le cadre du Projet 5 du parcours OpenClassrooms.
+Ce depot correspond a la mise en production du modele de prediction d'attrition construit au projet 4, puis industrialise dans le cadre du projet 5.
 
-L'objectif n'est pas seulement d'exposer un modele, mais de construire un systeme exploitable :
+Le projet ne se limite pas a exposer un `predict()` :
 
-- une API FastAPI pour exposer la prediction ;
-- une validation forte des entrees avec Pydantic ;
-- un packaging du modele avec MLflow ;
-- une base PostgreSQL pour la tracabilite ;
-- des scripts d'initialisation et de seed ;
-- une suite de tests ;
-- une CI GitHub Actions ;
-- un CD vers Hugging Face Spaces ;
-- une documentation technique reutilisable.
+- une API FastAPI sert de point d'entree metier ;
+- un preprocessing reconstruit exactement les variables attendues par le modele final ;
+- les predictions sont tracees en base ;
+- le modele est package via MLflow ;
+- une interface Streamlit sert de portfolio et de support de demonstration ;
+- une CI et une CD automatisent les controles et le deploiement.
 
-## 2. Objectifs fonctionnels
+## 2. Ce que fait l'application
 
 L'application permet de :
 
-- recevoir un profil employe sous forme de payload JSON ;
-- reconstruire les variables attendues par le modele ;
-- calculer une prediction d'attrition ;
-- renvoyer une sortie contenant la prediction, le score, le seuil, le nom et la version du modele ;
-- enregistrer en base la requete, le resultat et un log technique associe.
+- recevoir un profil employe en JSON ;
+- valider les entrees avec Pydantic ;
+- reconstruire les features du modele final ;
+- calculer une prediction, un score et une explication locale ;
+- enregistrer la requete et le resultat en base ;
+- traiter un fichier CSV en batch depuis l'interface Streamlit.
 
-## 3. Architecture du projet
+## 3. Architecture
 
-Le projet est structure autour de plusieurs couches :
+### 3.1 Vue d'ensemble
 
-- `app/api/` : endpoints HTTP et routage FastAPI ;
-- `app/schemas/` : contrats d'entree et de sortie ;
-- `app/services/` : orchestration metier de la prediction ;
-- `app/ml/` : chargement du modele, preprocessing et calcul du score ;
-- `app/db/` : configuration SQLAlchemy, sessions et modeles ORM ;
-- `scripts/` : initialisation, export et seed ;
-- `tests/` : tests unitaires et d'integration ;
-- `artifacts/model/` : artefacts MLflow du modele ;
-- `docs/` : documentation projet, mode operatoire et support de demonstration.
+- `app/api/` : endpoints FastAPI
+- `app/schemas/` : schemas Pydantic d'entree et de sortie
+- `app/services/` : orchestration metier
+- `app/ml/` : chargement du modele, preprocessing, scoring, explication locale
+- `app/db/` : SQLAlchemy, sessions et modeles ORM
+- `scripts/` : creation de base, seed, export MLflow
+- `ui/` : application Streamlit
+- `tests/` : tests unitaires et tests d'integration
+- `artifacts/model/` : artefacts MLflow et metadata applicative
+- `docs/` : documentation de travail, architecture et exploitation
 
-Flux de prediction :
+### 3.2 Flux de prediction
 
-1. l'API recoit un payload JSON ;
-2. Pydantic valide les entrees ;
-3. le service cree une trace de la requete ;
-4. le preprocessing reconstruit les features du modele ;
-5. le modele MLflow est charge ;
-6. le score est calcule selon la methode declaree dans la metadata ;
-7. la prediction est renvoyee ;
-8. le resultat et le log technique sont persistés en base.
+1. L'API recoit un payload JSON.
+2. Pydantic valide les types et la structure.
+3. Le service metier journalise la requete si la persistance est active.
+4. Le preprocessing reconstruit les variables du modele.
+5. Le modele MLflow est charge.
+6. Le score est calcule avec la methode declaree dans la metadata (`decision_function` pour le modele final).
+7. La prediction est derivee du score et du seuil.
+8. Le resultat et le log technique sont enregistres en base.
 
-Documentation d'architecture complementaire :
+### 3.3 Flux d'explication locale
+
+1. L'API recoit le meme payload que pour une prediction.
+2. Le preprocessing reconstruit les features finales.
+3. Le module d'explication decompose le score du modele lineaire en contributions locales.
+4. L'API renvoie les facteurs qui augmentent ou diminuent le risque de depart.
+
+### 3.4 Flux batch
+
+1. Streamlit charge un CSV de type `df_EDA.csv`.
+2. Le frontend decoupe les donnees en paquets.
+3. Chaque paquet est envoye a `POST /api/v1/predict/batch`.
+4. L'application affiche des indicateurs globaux, les profils les plus exposes et une analyse locale par employe.
+
+Documentation complementaire :
 
 - [`docs/architecture/overview.md`](docs/architecture/overview.md)
-- [`docs/p5_trace.md`](docs/p5_trace.md)
+- [`docs/api/README.md`](docs/api/README.md)
+- [`docs/model/README.md`](docs/model/README.md)
 - [`docs/p5_demo_exploitation.md`](docs/p5_demo_exploitation.md)
+- [`docs/maintenance_protocol.md`](docs/maintenance_protocol.md)
 
 ## 4. Choix techniques et justifications
 
 ### FastAPI
 
-FastAPI a ete retenu pour :
+FastAPI a ete choisi pour :
 
 - sa rapidite de mise en place ;
-- la validation native avec Pydantic ;
-- la clarte des schemas ;
-- son adequation a une API de prediction.
+- sa documentation OpenAPI native ;
+- la validation directe via Pydantic ;
+- sa bonne adequation a une API de prediction.
 
 ### Pydantic
 
-Pydantic sert a :
+Pydantic garantit :
 
-- valider les payloads entrants ;
-- expliciter les types attendus ;
-- refuser rapidement les donnees incoherentes.
+- des contrats d'entree et de sortie explicites ;
+- des erreurs propres quand le payload est invalide ;
+- une documentation technique alignant code et API.
 
 ### MLflow
 
-MLflow est utilise pour :
+MLflow sert a :
 
-- exporter le modele sous une forme standardisee ;
-- conserver une metadata applicative associee ;
-- decoupler l'entrainement du runtime de prediction.
+- exporter le modele dans un format standard ;
+- conserver une metadata applicative ;
+- dissocier l'entrainement et le runtime de prediction.
 
-### SQLAlchemy + PostgreSQL
+### SQLAlchemy et PostgreSQL
 
-Ce choix permet :
+Cette pile a ete retenue pour :
 
-- de persister la tracabilite des predictions ;
-- d'unifier l'acces base en local et en environnement distant ;
-- de garder un modele de donnees explicite et testable.
+- tracer les predictions et les erreurs ;
+- stocker les donnees source ;
+- garder une couche de persistance explicite, testable et evolutive.
+
+### Streamlit
+
+Streamlit est utilise pour :
+
+- exposer une interface portfolio rapide a iterer ;
+- demontrer le projet sans passer uniquement par Swagger ou PowerShell ;
+- fournir une vue unitaire et batch du modele.
 
 ### Docker
 
-Docker est utilise pour :
+Docker permet :
 
-- figer l'environnement de runtime ;
-- tester localement un packaging proche du deploiement ;
-- fournir une cible compatible avec Hugging Face Spaces.
+- de figer l'environnement d'execution ;
+- de reproduire localement une stack proche du deploiement ;
+- de deployer sur Hugging Face Spaces en mode Docker.
 
 ### GitHub Actions
 
-GitHub Actions permet :
+GitHub Actions est utilise pour :
 
-- de securiser la qualite avec la CI ;
-- de factoriser le deploiement vers Hugging Face Spaces ;
-- de garder une trace automatique des validations.
+- valider les tests automatiquement ;
+- separer CI et CD ;
+- pousser les Spaces Hugging Face depuis le repository.
 
 ## 5. Prerequis
 
-Pour travailler localement sur le projet, il faut :
+Pour travailler localement sur le projet :
 
 - Python `3.11`
 - `uv`
@@ -119,14 +142,14 @@ Pour travailler localement sur le projet, il faut :
 
 ## 6. Installation locale
 
-### 6.1 Cloner le projet
+### 6.1 Cloner le depot
 
 ```powershell
 git clone https://github.com/rayakevin/p5-employee-attrition-api.git
 cd p5-employee-attrition-api
 ```
 
-### 6.2 Installer l'environnement Python
+### 6.2 Creer l'environnement Python
 
 ```powershell
 uv venv
@@ -136,7 +159,7 @@ uv pip install -r requirements.txt
 
 ### 6.3 Variables de configuration
 
-La configuration est centralisee via le prefixe `P5_`.
+La configuration du projet est prefixee par `P5_`.
 
 Variable principale :
 
@@ -144,7 +167,14 @@ Variable principale :
 P5_DATABASE_URL=postgresql+psycopg://postgres:postgres@127.0.0.1:5433/p5_attrition
 ```
 
-Par defaut, l'application peut retomber sur SQLite pour un environnement minimal, mais le fonctionnement de reference du P5 repose sur PostgreSQL.
+Variable utile pour le portfolio Streamlit :
+
+```env
+P5_API_BASE_URL=http://127.0.0.1:8000
+P5_API_KEY=p5-demo-local-key
+```
+
+En deploiement distant, si `P5_DATABASE_URL` n'est pas defini, l'API utilise un fallback SQLite local au conteneur. Le projet configure ce fallback sur un chemin ecrivable pour Hugging Face Spaces.
 
 ## 7. Lancement local avec PostgreSQL
 
@@ -154,11 +184,9 @@ Par defaut, l'application peut retomber sur SQLite pour un environnement minimal
 docker compose up -d postgres
 ```
 
-Point d'attention :
+Le projet utilise `5433` pour eviter les collisions avec une installation PostgreSQL locale deja presente sur `5432`.
 
-- si un PostgreSQL local utilise deja `5432`, le projet expose son conteneur sur `5433`.
-
-### 7.2 Initialiser le schema et les donnees source
+### 7.2 Creer le schema et charger les donnees source
 
 ```powershell
 $env:P5_DATABASE_URL="postgresql+psycopg://postgres:postgres@127.0.0.1:5433/p5_attrition"
@@ -168,11 +196,10 @@ uv run python scripts/seed_data.py
 
 Explication :
 
-- `scripts/create_db.py` cree les tables du projet ;
-- `scripts/seed_data.py` charge les donnees source issues des fichiers CSV metier.
+- `scripts/create_db.py` cree les tables SQLAlchemy ;
+- `scripts/seed_data.py` fusionne les trois fichiers CSV metier et recharge `employees_source`.
 
-Un **script de seed** est un script qui peuple une base avec des donnees de depart utiles au fonctionnement ou aux demonstrations du projet.
-Ici, il sert a charger `employees_source` a partir des trois extractions metier.
+Un script de `seed` est un script qui peuple une base avec des donnees initiales utiles a l'application, aux demonstrations ou aux tests.
 
 ### 7.3 Demarrer l'API
 
@@ -181,7 +208,7 @@ $env:P5_DATABASE_URL="postgresql+psycopg://postgres:postgres@127.0.0.1:5433/p5_a
 uv run uvicorn app.main:app --reload
 ```
 
-### 7.4 Verifier que l'API repond
+### 7.4 Verifier le service
 
 ```powershell
 Invoke-RestMethod -Method Get -Uri "http://127.0.0.1:8000/health"
@@ -193,12 +220,6 @@ Reponse attendue :
 {"status":"ok"}
 ```
 
-### 7.5 Arreter l'environnement
-
-```powershell
-docker compose down
-```
-
 ## 8. Utilisation de l'API
 
 ### 8.1 Endpoints principaux
@@ -206,29 +227,25 @@ docker compose down
 - `GET /`
 - `GET /health`
 - `POST /api/v1/predict`
+- `POST /api/v1/explain`
+- `POST /api/v1/predict/batch`
 
-### 8.2 Valeurs admissibles pour les champs categoriels et binaires
+Les routes metier `POST` sont protegees par une cle d'API transmise dans l'en-tete `X-API-Key`.
 
-Les valeurs ci-dessous reprennent les libelles observes dans les CSV bruts du projet. C'est ce jeu de valeurs qu'il faut privilegier dans les appels a l'API.
+### 8.2 Valeurs conseillees pour les champs categoriels
 
-- `genre` :
-  - valeurs utilisateur conseillees : `Homme`, `Femme`
-  - codes bruts egalement acceptes : `M`, `F`
-- `statut_marital` :
-  - `Célibataire`
-  - `Marié(e)`
-  - `Divorcé(e)`
-- `departement` :
-  - `Commercial`
-  - `Consulting`
-  - `Ressources Humaines`
+Les valeurs ci-dessous reprennent les libelles francises documentes par le projet et normalises par le preprocessing.
+
+- `genre` : `Homme`, `Femme`
+- `statut_marital` : `Celibataire`, `Marie(e)`, `Divorce(e)`
+- `departement` : `Commercial`, `Consulting`, `Ressources Humaines`
 - `poste` :
   - `Assistant de Direction`
   - `Cadre Commercial`
   - `Consultant`
   - `Directeur Technique`
   - `Manager`
-  - `Représentant Commercial`
+  - `Representant Commercial`
   - `Ressources Humaines`
   - `Senior Manager`
   - `Tech Lead`
@@ -239,31 +256,22 @@ Les valeurs ci-dessous reprennent les libelles observes dans les CSV bruts du pr
   - `Marketing`
   - `Ressources Humaines`
   - `Transformation Digitale`
-- `frequence_deplacement` :
-  - `Aucun`
-  - `Frequent`
-  - `Occasionnel`
-- `heure_supplementaires` :
-  - valeurs conseillees : `Oui`, `Non`
-  - formats historiques acceptes : `1`, `0`, `true`, `false`
-- `ayant_enfants` :
-  - valeurs conseillees : `Oui`, `Non`
-  - codes sources egalement acceptes : `Y`, `N`
+- `frequence_deplacement` : `Aucun`, `Frequent`, `Occasionnel`
+- `heure_supplementaires` : `Oui`, `Non`
 
-Le preprocessing conserve quelques alias anglais pour compatibilite ascendante, mais le contrat documentaire du projet repose sur ces libelles metier francises.
+Le projet conserve quelques alias historiques pour compatibilite, mais le contrat documentaire a privilegier est francais.
 
-### 8.3 Exemple de payload en francais
+### 8.3 Exemple de payload de prediction
 
 ```powershell
 $payload = @{
     age = 35
     genre = "Homme"
     revenu_mensuel = 4500
-    statut_marital = "Marié(e)"
+    statut_marital = "Marie(e)"
     departement = "Consulting"
     poste = "Consultant"
     nombre_experiences_precedentes = 3
-    nombre_heures_travailless = 40
     annee_experience_totale = 12
     annees_dans_l_entreprise = 7
     annees_dans_le_poste_actuel = 4
@@ -275,14 +283,13 @@ $payload = @{
     satisfaction_employee_equilibre_pro_perso = 2
     note_evaluation_actuelle = 4.0
     heure_supplementaires = "Oui"
-    augementation_salaire_precedente = 12
+    augementation_salaire_precedente = 0.12
     nombre_participation_pee = 1
     nb_formations_suivies = 3
     nombre_employee_sous_responsabilite = 0
     distance_domicile_travail = 12
     niveau_education = 3
     domaine_etude = "Infra & Cloud"
-    ayant_enfants = "Oui"
     frequence_deplacement = "Occasionnel"
     annees_depuis_la_derniere_promotion = 2
     annes_sous_responsable_actuel = 3
@@ -291,11 +298,12 @@ $payload = @{
 Invoke-RestMethod `
   -Method Post `
   -Uri "http://127.0.0.1:8000/api/v1/predict" `
+  -Headers @{ "X-API-Key" = $env:P5_API_KEY } `
   -ContentType "application/json" `
   -Body $payload
 ```
 
-Exemple de reponse attendue :
+Exemple de reponse :
 
 ```json
 {
@@ -307,83 +315,197 @@ Exemple de reponse attendue :
 }
 ```
 
+### 8.4 Exemple de requete d'explication locale
+
+```powershell
+Invoke-RestMethod `
+  -Method Post `
+  -Uri "http://127.0.0.1:8000/api/v1/explain" `
+  -Headers @{ "X-API-Key" = $env:P5_API_KEY } `
+  -ContentType "application/json" `
+  -Body $payload
+```
+
+La reponse contient :
+
+- la `base_value` ;
+- les sommes positives et negatives ;
+- les facteurs principaux qui augmentent le risque ;
+- les facteurs principaux qui diminuent le risque.
+
+### 8.5 Exemple de requete batch
+
+```powershell
+$batch = @{
+    rows = @(
+        @{
+            age = 35
+            genre = "Homme"
+            revenu_mensuel = 4500
+            statut_marital = "Marie(e)"
+            departement = "Consulting"
+            poste = "Consultant"
+            nombre_experiences_precedentes = 3
+            annee_experience_totale = 12
+            annees_dans_l_entreprise = 7
+            annees_dans_le_poste_actuel = 4
+            satisfaction_employee_environnement = 3
+            note_evaluation_precedente = 3.0
+            niveau_hierarchique_poste = 2
+            satisfaction_employee_nature_travail = 4
+            satisfaction_employee_equipe = 3
+            satisfaction_employee_equilibre_pro_perso = 2
+            note_evaluation_actuelle = 4.0
+            heure_supplementaires = "Oui"
+            augementation_salaire_precedente = 0.12
+            nombre_participation_pee = 1
+            nb_formations_suivies = 3
+            nombre_employee_sous_responsabilite = 0
+            distance_domicile_travail = 12
+            niveau_education = 3
+            domaine_etude = "Infra & Cloud"
+            frequence_deplacement = "Occasionnel"
+            annees_depuis_la_derniere_promotion = 2
+            annes_sous_responsable_actuel = 3
+        }
+    )
+} | ConvertTo-Json -Depth 5
+
+Invoke-RestMethod `
+  -Method Post `
+  -Uri "http://127.0.0.1:8000/api/v1/predict/batch" `
+  -Headers @{ "X-API-Key" = $env:P5_API_KEY } `
+  -ContentType "application/json" `
+  -Body $batch
+```
+
+## 8.6 Authentification et securite
+
+Le projet implemente une authentification simple par cle d'API.
+
+Principe :
+
+- les routes publiques `GET /` et `GET /health` restent ouvertes ;
+- les routes metier `/predict`, `/explain` et `/predict/batch` exigent un en-tete `X-API-Key` ;
+- la valeur attendue est lue depuis `P5_API_KEY`.
+
+Pourquoi ce choix :
+
+- il repond au besoin pedagogique de controle d'acces ;
+- il reste facile a tester, a documenter et a deployer ;
+- il est compatible avec FastAPI et Swagger/OpenAPI.
+
+Bonnes pratiques retenues :
+
+- ne pas committer de secrets dans le code ;
+- passer les valeurs sensibles par variables d'environnement ou secrets GitHub ;
+- utiliser des valeurs distinctes entre local et deploiement distant ;
+- limiter l'exposition de la base et des variables de configuration.
+
 ## 9. Base de donnees et tracabilite
 
-Le projet persiste :
+Tables principales :
 
-- `prediction_requests` : payload brut recu ;
-- `prediction_results` : prediction calculee, score, seuil, version et nom du modele ;
-- `api_audit_logs` : statut technique de l'appel ;
-- `employees_source` : donnees source chargees depuis les CSV metier.
+- `employees_source` : donnees source fusionnees depuis les CSV bruts
+- `prediction_requests` : payload brut recu
+- `prediction_results` : prediction, score, seuil et metadata du modele
+- `api_audit_logs` : trace technique de l'appel
 
-Cette partie est essentielle dans le P5, car elle montre que la prediction est integree dans un vrai flux applicatif et non seulement exposee en sortie console.
+Cette couche est essentielle pour le P5 car elle montre que le modele est integre dans un vrai flux applicatif.
 
-## 10. Tests
+## 10. Interface Streamlit
 
-### 10.1 Lancer toute la suite
+L'interface portfolio se trouve dans [`ui/streamlit_app.py`](ui/streamlit_app.py).
+
+Elle propose :
+
+- une analyse unitaire ;
+- une explication locale visuelle ;
+- une analyse batch sur CSV ;
+- une selection employe par employe apres scoring global.
+
+### Lancer Streamlit en local
+
+```powershell
+$env:P5_API_BASE_URL="http://127.0.0.1:8000"
+uv run streamlit run ui/streamlit_app.py
+```
+
+## 11. Tests
+
+### 11.1 Lancer toute la suite
 
 ```powershell
 uv run pytest -q
 ```
 
-### 10.2 Ce que couvrent les tests
+### 11.2 Ce qui est couvert
 
-- validation de l'API ;
-- schemas d'entree ;
+- endpoints API ;
+- validation des schemas ;
+- logique de score ;
+- explication locale ;
+- preprocessing ;
 - persistance en base ;
 - seed des donnees source ;
-- logique de score ;
-- comportement de la prediction en cas de succes et d'erreur.
+- endpoints batch ;
+- protection par cle d'API ;
+- contrat OpenAPI ;
+- parcours fonctionnels principaux.
 
-## 11. Lancement local avec Docker
+### 11.3 Generer un rapport de couverture
 
-### 11.1 Build et lancement
+En local :
+
+```powershell
+uv run pytest --cov=app --cov-report=term-missing --cov-report=html --cov-report=xml
+```
+
+Resultats :
+
+- rapport terminal pour lecture rapide ;
+- `htmlcov/index.html` pour une lecture detaillee ;
+- `coverage.xml` pour la CI.
+
+## 12. Docker
+
+### 12.1 Stack locale API + PostgreSQL
 
 ```powershell
 docker compose up -d --build postgres api
 ```
 
-### 11.2 Verification
+Verification :
 
 ```powershell
 Invoke-RestMethod -Method Get -Uri "http://127.0.0.1:8000/health"
 ```
 
-### 11.3 Point d'attention
-
-Si le volume PostgreSQL est vierge, il faut initialiser la base avant ou juste apres le demarrage du stack local :
+### 12.2 Portfolio Streamlit local
 
 ```powershell
-$env:P5_DATABASE_URL="postgresql+psycopg://postgres:postgres@127.0.0.1:5433/p5_attrition"
-uv run python scripts/create_db.py
-uv run python scripts/seed_data.py
+docker compose up -d --build portfolio
 ```
 
-## 12. CI/CD
+Le portfolio consomme l'API via `P5_API_BASE_URL`.
 
-### 12.1 CI
+## 13. CI/CD
 
-La CI GitHub Actions :
-
-- installe les dependances ;
-- lance PostgreSQL ;
-- cree le schema ;
-- seed les donnees ;
-- execute les tests et la couverture.
+### 13.1 CI
 
 Workflow :
 
 - [`.github/workflows/ci.yml`](.github/workflows/ci.yml)
 
-### 12.2 CD
+La CI :
 
-Le CD deploye le projet vers un Hugging Face Space Docker.
+- installe les dependances ;
+- demarre PostgreSQL ;
+- cree le schema ;
+- charge les donnees source ;
+- execute les tests.
 
-Il :
-
-- valide le build Docker ;
-- prepare le contenu compatible avec le Space ;
-- pousse le depot vers Hugging Face.
+### 13.2 CD API
 
 Workflow :
 
@@ -395,112 +517,118 @@ Configuration GitHub requise :
 - variable `HF_USERNAME`
 - variable `HF_SPACE_NAME`
 
+### 13.3 CD portfolio Streamlit
+
+Workflow :
+
+- [`.github/workflows/cd-portfolio.yml`](.github/workflows/cd-portfolio.yml)
+
+Configuration GitHub requise :
+
+- secret `HF_TOKEN`
+- variable `HF_USERNAME`
+- variable `HF_PORTFOLIO_SPACE_NAME`
+
 Documentation de deploiement :
 
 - [`deploy/huggingface/README.md`](deploy/huggingface/README.md)
+- [`deploy/huggingface/portfolio.README.md`](deploy/huggingface/portfolio.README.md)
 
-## 13. Deploiement distant
+## 14. Deploiement distant
 
-Le deploiement distant retenu dans ce projet est Hugging Face Spaces en mode Docker.
+Le projet utilise Hugging Face Spaces en mode Docker.
 
-Point important :
+Important :
 
-- le Space sert de preuve de deploiement distant ;
-- la reference technique du P5 reste l'environnement local avec PostgreSQL ;
-- les rebuilds Hugging Face peuvent etre longs, ce qui en fait une cible de demonstration plus qu'un environnement de boucle rapide.
+- le Space API sert de preuve de deploiement distant ;
+- la reference technique pour le P5 reste l'environnement local avec PostgreSQL ;
+- les rebuilds HF peuvent etre longs, donc le debug principal reste local ;
+- le fallback SQLite du Space API est prevu pour un chemin de fichier ecrivable dans le conteneur.
 
-Exemples de verification a distance :
+Exemples de verification distante :
 
 ```powershell
-Invoke-RestMethod -Method Get -Uri "https://rayakevin-p5-employee-attrition-api.hf.space/"
 Invoke-RestMethod -Method Get -Uri "https://rayakevin-p5-employee-attrition-api.hf.space/health"
 ```
 
-## 14. Protocole de mise a jour reguliere
+## 15. Protocole de mise a jour
 
-Le protocole de maintenance recommande est documente ici :
+Le protocole detaille est documente dans [`docs/maintenance_protocol.md`](docs/maintenance_protocol.md).
 
-- [`docs/maintenance_protocol.md`](docs/maintenance_protocol.md)
+Resume pratique :
 
-En resume, a chaque mise a jour significative :
-
-1. mettre a jour les dependances et verifier la compatibilite ;
-2. relancer les tests ;
+1. mettre a jour le code et les dependances ;
+2. relancer `uv run pytest -q` ;
 3. verifier la prediction locale ;
-4. verifier la base ;
-5. verifier le build Docker ;
-6. verifier le deploiement distant ;
-7. mettre a jour la documentation si le comportement ou l'architecture changent.
-
-## 15. Documents utiles
-
-- [`docs/p5_trace.md`](docs/p5_trace.md) : journal technique detaille et mode operatoire complet
-- [`docs/p5_demo_exploitation.md`](docs/p5_demo_exploitation.md) : fiche courte de demonstration et d'exploitation
-- [`docs/architecture/overview.md`](docs/architecture/overview.md) : vue d'architecture
-- [`docs/maintenance_protocol.md`](docs/maintenance_protocol.md) : protocole de maintenance et de mise a jour
+4. verifier la base et la tracabilite ;
+5. verifier les builds Docker ;
+6. verifier les deploiements distants ;
+7. mettre a jour la documentation si le comportement change.
 
 ## 16. Conventions Git
 
-### 16.1 Conventions de branches
+### 16.1 Branches
 
-- `feature/<sujet>` : ajout d'une fonctionnalite ou d'un bloc de travail principal
-- `fix/<sujet>` : correction d'un bug fonctionnel ou technique
-- `docs/<sujet>` : travail centre sur la documentation
-- `chore/<sujet>` : maintenance, configuration, nettoyage, packaging
+- `feature/<sujet>` : nouvelle fonctionnalite
+- `fix/<sujet>` : correction de bug
+- `docs/<sujet>` : documentation
+- `chore/<sujet>` : maintenance, packaging, nettoyage
 - `test/<sujet>` : ajout ou reprise de tests
 
-### 16.2 Conventions de commits
+### 16.2 Commits
 
 - `feat:` : nouvelle fonctionnalite
-- `fix:` : correction de bug
+- `fix:` : correction
 - `docs:` : documentation
-- `chore:` : maintenance ou tache transversale
-- `test:` : ajout ou adaptation de tests
-- `ci:` : integration ou automatisation GitHub Actions
+- `chore:` : maintenance
+- `test:` : tests
+- `ci:` : pipeline GitHub Actions
 
-Exemples :
+### 16.3 Tags
 
-- `feat: implement prediction API with FastAPI and validation`
-- `fix: initialize database schema on container startup`
-- `docs: finalize project documentation and operating guides`
-- `ci: add GitHub Actions workflows and initial API tests`
+Le projet utilise egalement des tags Git pour figer des etapes importantes de livraison.
+
+Convention conseillee :
+
+- `v0.1.0`
+- `v0.2.0`
+- `v1.0.0`
+
+Un tag doit correspondre a un etat stable, testee et identifiable du projet.
 
 ## 17. Dependances
 
-### 17.1 `requirements.txt`
+- `requirements.txt` : environnement complet de dev, tests et usage local
+- `requirements.runtime.txt` : runtime API allege pour Docker et le Space API
+- `requirements.streamlit.txt` : runtime portfolio Streamlit
 
-Ce fichier contient les dependances du projet pour le developpement, les tests et les usages complets.
+## 18. Documents utiles
 
-Etat actuel :
+- [`docs/api/README.md`](docs/api/README.md) : documentation detaillee de l'API
+- [`docs/model/README.md`](docs/model/README.md) : documentation du modele final et du preprocessing
+- [`docs/p5_demo_exploitation.md`](docs/p5_demo_exploitation.md) : fiche de demonstration
+- [`docs/architecture/overview.md`](docs/architecture/overview.md) : architecture
+- [`docs/maintenance_protocol.md`](docs/maintenance_protocol.md) : maintenance
 
-- il est coherent avec le projet ;
-- il contient bien les dependances necessaires a l'API, au modele, a la base, aux tests et a l'interface Streamlit.
-
-### 17.2 `requirements.runtime.txt`
-
-Ce fichier contient uniquement les dependances necessaires au conteneur de production.
-
-Il est utilise par le `Dockerfile` pour alleger le runtime deploye.
-
-## 18. Etat du projet
+## 19. Etat du projet
 
 A date, le projet dispose :
 
-- d'une API de prediction fonctionnelle ;
-- d'un modele exporte via MLflow ;
-- d'une persistance de tracabilite ;
-- d'un environnement PostgreSQL local ;
-- d'une suite de tests ;
-- d'un packaging Docker ;
-- d'une CI et d'un CD ;
-- d'une documentation de projet exploitable.
+- d'une API FastAPI fonctionnelle ;
+- d'un modele final exporte et charge via MLflow ;
+- d'une explication locale additive ;
+- d'une base PostgreSQL locale avec seed ;
+- d'une tracabilite applicative ;
+- d'un portfolio Streamlit avec traitement batch ;
+- d'une CI et de deux CD distinctes ;
+- d'une documentation exploitable.
 
-## 19. Limites connues
+## 20. Limites connues
 
-- Hugging Face Spaces est fonctionnel mais lent a rebuild ;
-- PostgreSQL local ne se transpose pas automatiquement sur le Space distant ;
-- le deploiement distant est pertinent pour la demonstration, mais la validation technique de reference reste locale.
+- les rebuilds Hugging Face Spaces peuvent etre tres longs ;
+- PostgreSQL local n'est pas automatiquement disponible dans les Spaces ;
+- la cible distante sert surtout de vitrine et de preuve de deploiement.
 
-## 20. Auteurs et contexte
+## 21. Contexte
 
-Projet realise dans le cadre du Projet 5 du parcours OpenClassrooms, avec un objectif pedagogique de mise en production d'un modele de machine learning dans un environnement structure, testable et documente.
+Projet realise dans le cadre du Projet 5 OpenClassrooms, avec l'objectif de transformer un modele de machine learning en application exploitable, testable, tracable et documentee.

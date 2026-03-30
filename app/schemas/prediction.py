@@ -8,11 +8,46 @@ Ces schemas servent a la fois a :
 - garder un contrat metier clair entre le client et l'API.
 """
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class PredictionInput(BaseModel):
     """Decrit le payload metier attendu pour une prediction unitaire."""
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "age": 35,
+                "genre": "Homme",
+                "revenu_mensuel": 4500,
+                "statut_marital": "Marié(e)",
+                "departement": "Consulting",
+                "poste": "Consultant",
+                "nombre_experiences_precedentes": 3,
+                "annee_experience_totale": 12,
+                "annees_dans_l_entreprise": 7,
+                "annees_dans_le_poste_actuel": 4,
+                "satisfaction_employee_environnement": 3,
+                "note_evaluation_precedente": 3.0,
+                "niveau_hierarchique_poste": 2,
+                "satisfaction_employee_nature_travail": 4,
+                "satisfaction_employee_equipe": 3,
+                "satisfaction_employee_equilibre_pro_perso": 2,
+                "note_evaluation_actuelle": 4.0,
+                "heure_supplementaires": "Oui",
+                "augementation_salaire_precedente": 0.12,
+                "nombre_participation_pee": 1,
+                "nb_formations_suivies": 3,
+                "nombre_employee_sous_responsabilite": 0,
+                "distance_domicile_travail": 12,
+                "niveau_education": 3,
+                "domaine_etude": "Infra & Cloud",
+                "frequence_deplacement": "Occasionnel",
+                "annees_depuis_la_derniere_promotion": 2,
+                "annes_sous_responsable_actuel": 3,
+            }
+        }
+    )
 
     age: int = Field(..., ge=16, le=100, description="Age de l'employe")
     genre: str = Field(
@@ -114,6 +149,18 @@ class PredictionInput(BaseModel):
 class PredictionOutput(BaseModel):
     """Decrit la reponse metier renvoyee par l'API de prediction."""
 
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "prediction": 0,
+                "score": -18.58866414724979,
+                "threshold": 0.1138,
+                "model_version": "0.1.0",
+                "model_name": "linear_svc_attrition",
+            }
+        }
+    )
+
     prediction: int = Field(..., description="Classe predite : 0 ou 1")
     score: float = Field(..., description="Score brut du modele")
     threshold: float = Field(..., description="Seuil de decision applique")
@@ -134,6 +181,37 @@ class FeatureContribution(BaseModel):
 class PredictionExplanationOutput(BaseModel):
     """Decrit l'explication locale d'une prediction individuelle."""
 
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "model_name": "linear_svc_attrition",
+                "model_version": "0.1.0",
+                "score": -18.58866414724979,
+                "base_value": -0.0871,
+                "positive_sum": 0.5123,
+                "negative_sum": -19.0138,
+                "top_positive": [
+                    {
+                        "feature": "heure_supplementaires",
+                        "label": "Heures supplementaires",
+                        "value": 1.0,
+                        "contribution": 0.44,
+                        "direction": "hausse",
+                    }
+                ],
+                "top_negative": [
+                    {
+                        "feature": "frequence_deplacement_Aucun",
+                        "label": "Frequence de deplacement : Aucun",
+                        "value": 1.0,
+                        "contribution": -0.326,
+                        "direction": "baisse",
+                    }
+                ],
+            }
+        }
+    )
+
     model_name: str = Field(..., description="Nom du modele")
     model_version: str = Field(..., description="Version du modele")
     score: float = Field(..., description="Score brut du modele")
@@ -150,6 +228,45 @@ class PredictionExplanationOutput(BaseModel):
 
 class BatchPredictionInput(BaseModel):
     """Liste de payloads metier a scorer en un seul appel."""
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "rows": [
+                    {
+                        "age": 35,
+                        "genre": "Homme",
+                        "revenu_mensuel": 4500,
+                        "statut_marital": "Marié(e)",
+                        "departement": "Consulting",
+                        "poste": "Consultant",
+                        "nombre_experiences_precedentes": 3,
+                        "annee_experience_totale": 12,
+                        "annees_dans_l_entreprise": 7,
+                        "annees_dans_le_poste_actuel": 4,
+                        "satisfaction_employee_environnement": 3,
+                        "note_evaluation_precedente": 3.0,
+                        "niveau_hierarchique_poste": 2,
+                        "satisfaction_employee_nature_travail": 4,
+                        "satisfaction_employee_equipe": 3,
+                        "satisfaction_employee_equilibre_pro_perso": 2,
+                        "note_evaluation_actuelle": 4.0,
+                        "heure_supplementaires": "Oui",
+                        "augementation_salaire_precedente": 0.12,
+                        "nombre_participation_pee": 1,
+                        "nb_formations_suivies": 3,
+                        "nombre_employee_sous_responsabilite": 0,
+                        "distance_domicile_travail": 12,
+                        "niveau_education": 3,
+                        "domaine_etude": "Infra & Cloud",
+                        "frequence_deplacement": "Occasionnel",
+                        "annees_depuis_la_derniere_promotion": 2,
+                        "annes_sous_responsable_actuel": 3,
+                    }
+                ]
+            }
+        }
+    )
 
     rows: list[PredictionInput] = Field(..., min_length=1)
 

@@ -16,6 +16,8 @@ class Settings(BaseSettings):
     debug: bool = True
     # SQLite est utilisé comme valeur locale non sensible pour démarrer vite.
     database_url: str = "sqlite:////home/user/data/p5_attrition.db"
+    api_key: str = "p5-demo-local-key"
+    api_key_header_name: str = "X-API-Key"
 
     model_config = SettingsConfigDict(
         env_file=".env",

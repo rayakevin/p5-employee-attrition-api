@@ -1,5 +1,5 @@
 ---
-title: P5 Employee Attrition Portfolio
+title: P5 Portfolio Attrition Employes
 emoji: "📊"
 colorFrom: blue
 colorTo: indigo
@@ -7,17 +7,30 @@ sdk: docker
 app_port: 8501
 ---
 
-# P5 Employee Attrition Portfolio
+# P5 Portfolio Attrition Employes
 
-Docker Space exposing the Streamlit portfolio UI.
+Ce Space Docker expose l'interface Streamlit du portfolio.
 
-## Runtime notes
+## Notes de runtime
 
-- the application listens on port `8501`
-- it consumes the prediction API exposed through `P5_API_BASE_URL`
-- by default, it targets `https://rayakevin-p5-employee-attrition-api.hf.space`
+- l'application ecoute sur le port `8501`
+- elle consomme l'API via `P5_API_BASE_URL`
+- par defaut, elle cible `https://rayakevin-p5-employee-attrition-api.hf.space`
 
-## Main page
+## Ce que montre l'interface
 
-- Streamlit dashboard for attrition risk scoring
-- local explanation of the deployed linear model
+- une analyse unitaire d'un profil employe ;
+- une explication locale du score ;
+- une analyse batch a partir d'un CSV ;
+- un parcours de demonstration plus lisible qu'un simple appel HTTP.
+
+## Role de ce Space
+
+Ce Space sert de vitrine et de support de demonstration.
+
+La logique metier reste portee par l'API :
+
+- validation des payloads ;
+- preprocessing ;
+- scoring ;
+- explication locale.

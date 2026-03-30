@@ -5,6 +5,7 @@ from sqlalchemy import create_engine, delete, select
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
+from app.core.config import settings
 from app.db.base import Base
 from app.db.models import ApiAuditLog, PredictionRequest, PredictionResult
 from app.db.session import get_db
@@ -30,6 +31,7 @@ def override_get_db():
 
 app.dependency_overrides[get_db] = override_get_db
 client = TestClient(app)
+AUTH_HEADERS = {settings.api_key_header_name: settings.api_key}
 
 
 def build_valid_payload() -> dict:
@@ -86,7 +88,7 @@ def test_predict_valid() -> None:
     reset_tracking_tables()
     payload = build_valid_payload()
 
-    response = client.post("/api/v1/predict", json=payload)
+    response = client.post("/api/v1/predict", json=payload, headers=AUTH_HEADERS)
 
     assert response.status_code == 200
     data = response.json()
@@ -121,7 +123,7 @@ def test_predict_invalid_age() -> None:
     payload = build_valid_payload()
     payload["age"] = 10
 
-    response = client.post("/api/v1/predict", json=payload)
+    response = client.post("/api/v1/predict", json=payload, headers=AUTH_HEADERS)
 
     assert response.status_code == 422
 
@@ -140,7 +142,7 @@ def test_explain_valid() -> None:
     set_test_db_override()
     payload = build_valid_payload()
 
-    response = client.post("/api/v1/explain", json=payload)
+    response = client.post("/api/v1/explain", json=payload, headers=AUTH_HEADERS)
 
     assert response.status_code == 200
     data = response.json()
@@ -165,10 +167,20 @@ def test_predict_batch_valid() -> None:
     set_test_db_override()
     payload = {"rows": [build_valid_payload(), build_valid_payload()]}
 
-    response = client.post("/api/v1/predict/batch", json=payload)
+    response = client.post("/api/v1/predict/batch", json=payload, headers=AUTH_HEADERS)
 
     assert response.status_code == 200
     data = response.json()
     assert "results" in data
     assert len(data["results"]) == 2
     assert all("prediction" in item for item in data["results"])
+
+
+def test_predict_requires_api_key() -> None:
+    """Verifie qu'une route metier est protegee par la cle d'API."""
+    set_test_db_override()
+    payload = build_valid_payload()
+
+    response = client.post("/api/v1/predict", json=payload)
+
+    assert response.status_code == 401

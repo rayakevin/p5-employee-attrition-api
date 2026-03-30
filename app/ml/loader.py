@@ -20,7 +20,11 @@ LOGGER = logging.getLogger(__name__)
 
 
 def load_model_metadata() -> dict:
-    """Charge la metadata applicative associée au modèle exporté."""
+    """Charge la metadata applicative associée au modèle exporté.
+
+    Cette metadata complète l'artefact MLflow avec des éléments utiles au
+    runtime applicatif, comme le seuil de décision ou la méthode de score.
+    """
     with open(METADATA_PATH, "r", encoding="utf-8") as f:
         return json.load(f)
 
@@ -54,6 +58,9 @@ def load_mlflow_model():
     conserver l'accès à des méthodes comme `decision_function` ou
     `predict_proba`, nécessaires pour reconstruire un score cohérent avec la
     metadata du projet. En repli, on utilise le flavor pyfunc standard.
+
+    Ce fallback est volontairement journalisé, car il peut expliquer des
+    écarts de comportement entre un runtime local et un runtime déployé.
     """
     metadata = load_model_metadata()
     model_path = resolve_model_path(metadata["mlflow_model_uri"])

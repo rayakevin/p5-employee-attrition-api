@@ -1,7 +1,11 @@
 """Script de création du schéma de base de données.
 
-Ce script est pensé comme un point d'entrée simple à relancer en local.
-Il charge la metadata SQLAlchemy puis crée toutes les tables déclarées.
+Ce script joue le rôle d'initialisation minimale du stockage applicatif.
+Il peut être relancé sans logique métier complémentaire pour :
+
+- charger la metadata SQLAlchemy du projet ;
+- créer toutes les tables ORM déclarées ;
+- préparer un environnement local ou conteneurisé avant seed et tests.
 """
 
 from pathlib import Path
@@ -19,7 +23,12 @@ from app.db.session import engine
 
 
 def main() -> None:
-    """Crée physiquement les tables déclarées dans les modèles ORM."""
+    """Crée physiquement les tables déclarées dans les modèles ORM.
+
+    Le script s'appuie sur `Base.metadata.create_all(...)`, ce qui suffit
+    dans le cadre pédagogique du projet où l'on ne gère pas encore de
+    migrations versionnées avec Alembic.
+    """
     Base.metadata.create_all(bind=engine)
     print("Database schema created successfully.")
 

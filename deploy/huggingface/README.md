@@ -1,23 +1,36 @@
 ---
-title: P5 Employee Attrition API
-emoji: "\U0001F9E0"
+title: P5 API Attrition Employes
+emoji: "🧠"
 colorFrom: blue
 colorTo: indigo
 sdk: docker
 app_port: 8000
 ---
 
-# P5 Employee Attrition API
+# P5 API Attrition Employes
 
-Docker Space exposing the FastAPI service for employee attrition prediction.
+Ce Space Docker expose l'API FastAPI de prediction d'attrition.
 
-## Runtime notes
+## Notes de runtime
 
-- the application listens on port `8000`
-- if `P5_DATABASE_URL` is not defined, the API falls back to local SQLite
-- to keep prediction tracking in PostgreSQL, define `P5_DATABASE_URL` in the Space settings
+- l'application ecoute sur le port `8000`
+- si `P5_DATABASE_URL` n'est pas defini, l'API utilise un fallback SQLite local au conteneur
+- pour conserver une vraie persistance PostgreSQL, il faut definir `P5_DATABASE_URL` dans les secrets ou variables du Space
 
-## Main endpoint
+## Endpoints utiles
 
+- `GET /`
 - `GET /health`
 - `POST /api/v1/predict`
+- `POST /api/v1/explain`
+- `POST /api/v1/predict/batch`
+
+## Role de ce Space
+
+Ce Space sert surtout de preuve de deploiement distant.
+
+La reference technique du projet P5 reste :
+
+- le fonctionnement local avec PostgreSQL ;
+- les tests automatises ;
+- la verification locale du preprocessing et du score.

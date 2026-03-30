@@ -67,7 +67,8 @@ L'application permet de :
 Documentation complementaire :
 
 - [`docs/architecture/overview.md`](docs/architecture/overview.md)
-- [`docs/p5_trace.md`](docs/p5_trace.md)
+- [`docs/api/README.md`](docs/api/README.md)
+- [`docs/model/README.md`](docs/model/README.md)
 - [`docs/p5_demo_exploitation.md`](docs/p5_demo_exploitation.md)
 - [`docs/maintenance_protocol.md`](docs/maintenance_protocol.md)
 
@@ -603,7 +604,8 @@ Un tag doit correspondre a un etat stable, testee et identifiable du projet.
 
 ## 18. Documents utiles
 
-- [`docs/p5_trace.md`](docs/p5_trace.md) : mode operatoire detaille et retour d'experience
+- [`docs/api/README.md`](docs/api/README.md) : documentation detaillee de l'API
+- [`docs/model/README.md`](docs/model/README.md) : documentation du modele final et du preprocessing
 - [`docs/p5_demo_exploitation.md`](docs/p5_demo_exploitation.md) : fiche de demonstration
 - [`docs/architecture/overview.md`](docs/architecture/overview.md) : architecture
 - [`docs/maintenance_protocol.md`](docs/maintenance_protocol.md) : maintenance

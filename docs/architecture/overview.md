@@ -14,6 +14,11 @@ Les couches principales sont :
 - `scripts` : initialisation, export et seed ;
 - `tests` : verification du comportement.
 
+Documents complementaires :
+
+- [Documentation API](../api/README.md)
+- [Documentation du modele](../model/README.md)
+
 ## 2. Flux de prediction
 
 1. le client appelle `/api/v1/predict`
@@ -25,6 +30,8 @@ Les couches principales sont :
 7. le resultat est persisté en base
 8. un log technique est conserve dans `api_audit_logs`
 9. l'API renvoie une `PredictionOutput`
+
+Le portfolio Streamlit ne recalcule pas le modele lui-meme : il appelle l'API via `P5_API_BASE_URL`. Cela permet d'afficher dans l'interface exactement le comportement du service reel.
 
 ## 3. Flux base de donnees
 
@@ -41,6 +48,10 @@ La logique de persistance est volontairement simple :
 - un resultat est cree si la prediction aboutit ;
 - un log est ecrit dans tous les cas.
 
+En local, la cible recommandee est PostgreSQL.
+
+Sur Hugging Face Spaces, si `P5_DATABASE_URL` n'est pas fournie, l'API utilise un fallback SQLite local au conteneur pour rester executable. Cette base sert au fonctionnement minimal et a la tracabilite simple, pas a une persistance metier durable.
+
 ## 4. Flux modele
 
 Le modele est exporte avec MLflow puis charge au runtime depuis `artifacts/model/`.
@@ -52,6 +63,8 @@ La metadata associee permet de conserver :
 - le seuil de decision ;
 - la liste des features attendues ;
 - la methode de score attendue.
+
+Le feature engineering ne depend plus de la base de donnees pour fonctionner au runtime : les references utiles sont embarquees dans `artifacts/model/preprocessing_reference.json`.
 
 ## 5. Choix d'architecture
 

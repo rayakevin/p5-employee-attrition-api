@@ -39,7 +39,6 @@ class PredictionInput(BaseModel):
         "Tech Lead.",
     )
     nombre_experiences_precedentes: int = Field(..., ge=0, le=50)
-    nombre_heures_travailless: float = Field(..., ge=0, le=100)
     annee_experience_totale: float = Field(..., ge=0, le=80)
     annees_dans_l_entreprise: float = Field(..., ge=0, le=80)
     annees_dans_le_poste_actuel: float = Field(..., ge=0, le=80)
@@ -66,11 +65,6 @@ class PredictionInput(BaseModel):
         description="Domaine d'etude. Valeurs issues des CSV bruts : Autre, "
         "Entrepreunariat, Infra & Cloud, Marketing, Ressources Humaines, "
         "Transformation Digitale.",
-    )
-    ayant_enfants: str | int | bool = Field(
-        ...,
-        description="Presence d'enfants. Valeurs conseillees : Oui, Non. "
-        "Les codes bruts Y/N et les formats 1/0 restent acceptes.",
     )
     frequence_deplacement: str = Field(
         ...,
@@ -99,7 +93,7 @@ class PredictionInput(BaseModel):
             raise ValueError("La valeur ne peut pas etre vide.")
         return value
 
-    @field_validator("heure_supplementaires", "ayant_enfants", mode="before")
+    @field_validator("heure_supplementaires", mode="before")
     @classmethod
     def validate_binary_flags(cls, value: str | int | bool) -> str | int | bool:
         """Accepte les formats metier usuels avant normalisation ulterieure."""

@@ -1,6 +1,37 @@
 {
-  "poste_mapping": {},
-  "domaine_etude_mapping": {},
-  "mediane_revenu_par_niveau": {},
-  "mediane_revenu_par_poste_regroupe": {}
+  "poste_mapping": {
+    "Cadre Commercial": "Cadre Commercial",
+    "Assistant de Direction": "Assistant de Direction",
+    "Consultant": "Consultant",
+    "Tech Lead": "Tech Lead",
+    "Manager": "Manager",
+    "Senior Manager": "Senior Manager",
+    "Représentant Commercial": "Autre",
+    "Directeur Technique": "Autre",
+    "Ressources Humaines": "Autre"
+  },
+  "domaine_etude_mapping": {
+    "Infra & Cloud": "Infra & Cloud",
+    "Autre": "Autre",
+    "Transformation Digitale": "Transformation Digitale",
+    "Marketing": "Marketing",
+    "Entrepreunariat": "Entrepreunariat",
+    "Ressources Humaines": "Autre"
+  },
+  "mediane_revenu_par_niveau": {
+    "1": 2670.0,
+    "2": 5340.0,
+    "3": 9980.0,
+    "4": 16154.0,
+    "5": 19232.0
+  },
+  "mediane_revenu_par_poste_regroupe": {
+    "Assistant de Direction": 2887.5,
+    "Autre": 3737.0,
+    "Cadre Commercial": 6231.0,
+    "Consultant": 2886.0,
+    "Manager": 6811.0,
+    "Senior Manager": 17454.5,
+    "Tech Lead": 6447.0
+  }
 }

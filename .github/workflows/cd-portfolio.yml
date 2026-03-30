@@ -1,4 +1,4 @@
-name: CD
+name: CD Portfolio
 
 on:
   push:
@@ -7,7 +7,8 @@ on:
   workflow_dispatch:
 
 jobs:
-  deploy-to-hf-space:
+  deploy-portfolio-to-hf-space:
+    if: ${{ vars.HF_PORTFOLIO_SPACE_NAME != '' }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -17,37 +18,33 @@ jobs:
         uses: actions/checkout@v5
         with:
           fetch-depth: 0
-          lfs: true
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Build Docker image
+      - name: Build Streamlit Docker image
         uses: docker/build-push-action@v6
         with:
           context: .
-          file: ./Dockerfile
+          file: ./Dockerfile.streamlit
           push: false
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      - name: Prepare Space repository content
+      - name: Prepare Portfolio Space repository content
         run: |
           mkdir -p hf-space-sync
-          cp Dockerfile hf-space-sync/Dockerfile
-          cp requirements.runtime.txt hf-space-sync/requirements.runtime.txt
-          cp deploy/huggingface/README.md hf-space-sync/README.md
-          cp pyproject.toml hf-space-sync/pyproject.toml
-          rsync -av app/ hf-space-sync/app/
-          rsync -av artifacts/ hf-space-sync/artifacts/
-          mkdir -p hf-space-sync/scripts
-          cp scripts/create_db.py hf-space-sync/scripts/create_db.py
+          cp Dockerfile.streamlit hf-space-sync/Dockerfile
+          cp requirements.streamlit.txt hf-space-sync/requirements.streamlit.txt
+          cp deploy/huggingface/portfolio.README.md hf-space-sync/README.md
+          rsync -av ui/ hf-space-sync/ui/
+          rsync -av .streamlit/ hf-space-sync/.streamlit/
 
-      - name: Push to Hugging Face Space
+      - name: Push to Hugging Face Portfolio Space
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
           HF_USERNAME: ${{ vars.HF_USERNAME }}
-          HF_SPACE_NAME: ${{ vars.HF_SPACE_NAME }}
+          HF_SPACE_NAME: ${{ vars.HF_PORTFOLIO_SPACE_NAME }}
         run: |
           test -n "$HF_TOKEN"
           test -n "$HF_USERNAME"
@@ -59,5 +56,5 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add .
-          git commit -m "Deploy from GitHub Actions"
+          git commit -m "Deploy portfolio from GitHub Actions"
           git push --force https://$HF_USERNAME:$HF_TOKEN@huggingface.co/spaces/$HF_USERNAME/$HF_SPACE_NAME main

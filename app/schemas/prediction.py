@@ -119,3 +119,42 @@ class PredictionOutput(BaseModel):
     threshold: float = Field(..., description="Seuil de decision applique")
     model_version: str = Field(..., description="Version du modele")
     model_name: str = Field(..., description="Nom du modele")
+
+
+class FeatureContribution(BaseModel):
+    """Decrit la contribution locale d'une feature au score individuel."""
+
+    feature: str = Field(..., description="Nom technique de la feature")
+    label: str = Field(..., description="Libelle lisible pour l'utilisateur")
+    value: float = Field(..., description="Valeur numerique finale de la feature")
+    contribution: float = Field(..., description="Contribution au score du modele")
+    direction: str = Field(..., description="Sens de l'effet sur le score")
+
+
+class PredictionExplanationOutput(BaseModel):
+    """Decrit l'explication locale d'une prediction individuelle."""
+
+    model_name: str = Field(..., description="Nom du modele")
+    model_version: str = Field(..., description="Version du modele")
+    score: float = Field(..., description="Score brut du modele")
+    base_value: float = Field(..., description="Intercept du modele lineaire")
+    positive_sum: float = Field(..., description="Somme des contributions positives")
+    negative_sum: float = Field(..., description="Somme des contributions negatives")
+    top_positive: list[FeatureContribution] = Field(
+        ..., description="Top des variables qui poussent vers un score plus eleve"
+    )
+    top_negative: list[FeatureContribution] = Field(
+        ..., description="Top des variables qui poussent vers un score plus faible"
+    )
+
+
+class BatchPredictionInput(BaseModel):
+    """Liste de payloads metier a scorer en un seul appel."""
+
+    rows: list[PredictionInput] = Field(..., min_length=1)
+
+
+class BatchPredictionOutput(BaseModel):
+    """Resultat detaille d'un scoring batch."""
+
+    results: list[PredictionOutput] = Field(...)

@@ -1,16 +1,20 @@
 """Interface Streamlit portfolio pour la prediction d'attrition.
 
-Cette interface consomme exclusivement l'API FastAPI. Elle ne recharge pas le
-modele localement et ne recopie pas la logique de prediction : elle sert de
-surcouche de demonstration metier, plus lisible pour un contexte portfolio.
+Le frontend reste volontairement léger :
+- il collecte un profil métier ;
+- il appelle l'API FastAPI pour la prediction ;
+- il appelle ensuite l'endpoint d'explication locale du score ;
+- il affiche les résultats dans une présentation plus portfolio.
 """
 
 from __future__ import annotations
 
 import os
-from typing import Any
+from typing import Any, Callable
 
+import altair as alt
 import httpx
+import pandas as pd
 import streamlit as st
 
 
@@ -63,7 +67,7 @@ FORM_DEFAULTS: dict[str, Any] = {
     "satisfaction_employee_equilibre_pro_perso": 2,
     "note_evaluation_actuelle": 4.0,
     "heure_supplementaires": "Oui",
-    "augementation_salaire_precedente": 12.0,
+    "augementation_salaire_precedente": 0.12,
     "nombre_participation_pee": 1,
     "nb_formations_suivies": 3,
     "nombre_employee_sous_responsabilite": 0,
@@ -82,7 +86,6 @@ PROFILE_LIBRARY: dict[str, dict[str, Any]] = {
         "age": 46,
         "genre": "Femme",
         "revenu_mensuel": 6900.0,
-        "statut_marital": "Marié(e)",
         "poste": "Senior Manager",
         "annee_experience_totale": 22.0,
         "annees_dans_l_entreprise": 14.0,
@@ -91,43 +94,49 @@ PROFILE_LIBRARY: dict[str, dict[str, Any]] = {
         "note_evaluation_precedente": 4.0,
         "note_evaluation_actuelle": 4.0,
         "heure_supplementaires": "Non",
-        "augementation_salaire_precedente": 16.0,
+        "augementation_salaire_precedente": 0.16,
         "distance_domicile_travail": 7.0,
         "frequence_deplacement": "Aucun",
         "annees_depuis_la_derniere_promotion": 1.0,
         "annes_sous_responsable_actuel": 5.0,
     },
-    "Profil exposé au départ": {
+    "Profil junior instable": {
         **FORM_DEFAULTS,
-        "age": 29,
-        "genre": "Homme",
-        "revenu_mensuel": 2800.0,
+        "age": 24,
+        "genre": "Femme",
+        "revenu_mensuel": 3202.0,
         "statut_marital": "Célibataire",
         "departement": "Commercial",
-        "poste": "Cadre Commercial",
-        "nombre_experiences_precedentes": 5,
-        "annee_experience_totale": 7.0,
-        "annees_dans_l_entreprise": 2.0,
-        "annees_dans_le_poste_actuel": 1.0,
-        "satisfaction_employee_environnement": 2,
-        "note_evaluation_precedente": 2.0,
+        "poste": "Représentant Commercial",
+        "nombre_experiences_precedentes": 1,
+        "annee_experience_totale": 6.0,
+        "annees_dans_l_entreprise": 5.0,
+        "annees_dans_le_poste_actuel": 3.0,
+        "satisfaction_employee_environnement": 1,
+        "note_evaluation_precedente": 3.0,
         "satisfaction_employee_nature_travail": 2,
         "satisfaction_employee_equipe": 2,
-        "satisfaction_employee_equilibre_pro_perso": 1,
-        "note_evaluation_actuelle": 4.0,
+        "satisfaction_employee_equilibre_pro_perso": 3,
+        "note_evaluation_actuelle": 3.0,
         "heure_supplementaires": "Oui",
-        "augementation_salaire_precedente": 6.0,
-        "distance_domicile_travail": 28.0,
-        "domaine_etude": "Marketing",
-        "frequence_deplacement": "Frequent",
-        "annees_depuis_la_derniere_promotion": 2.0,
-        "annes_sous_responsable_actuel": 1.0,
+        "augementation_salaire_precedente": 0.16,
+        "nombre_participation_pee": 0,
+        "nb_formations_suivies": 4,
+        "nombre_employee_sous_responsabilite": 1,
+        "distance_domicile_travail": 1.0,
+        "niveau_education": 1,
+        "domaine_etude": "Entrepreunariat",
+        "frequence_deplacement": "Occasionnel",
+        "annees_depuis_la_derniere_promotion": 1.0,
+        "annes_sous_responsable_actuel": 4.0,
     },
 }
 
+BATCH_REQUIRED_COLUMNS = list(FORM_DEFAULTS.keys())
+
 
 def configure_page() -> None:
-    """Definit la configuration generale de la page."""
+    """Configure la page Streamlit."""
     st.set_page_config(
         page_title="Portfolio P5 - Attrition",
         page_icon="🧠",
@@ -137,49 +146,204 @@ def configure_page() -> None:
 
 
 def apply_styles() -> None:
-    """Ajoute un habillage plus intentionnel que le rendu Streamlit natif."""
+    """Ajoute un style dashboard inspiré des démos Streamlit modernes."""
     st.markdown(
         """
         <style>
         .stApp {
             background:
-                radial-gradient(circle at top left, #f7f0df 0%, transparent 30%),
-                linear-gradient(180deg, #fbf8f1 0%, #f0e7d2 100%);
+                radial-gradient(circle at top right, rgba(84, 112, 198, 0.10) 0%, transparent 28%),
+                radial-gradient(circle at top left, rgba(43, 179, 150, 0.08) 0%, transparent 24%),
+                linear-gradient(180deg, #0f172a 0%, #111827 45%, #172033 100%);
+            color: #e5eefb;
+        }
+        section[data-testid="stSidebar"] {
+            background:
+                linear-gradient(180deg, rgba(13, 22, 40, 0.98) 0%, rgba(17, 24, 39, 0.98) 100%);
+            border-right: 1px solid rgba(148, 163, 184, 0.14);
+        }
+        section[data-testid="stSidebar"] * {
+            color: #e5eefb;
         }
         .block-container {
-            max-width: 1180px;
-            padding-top: 2rem;
+            max-width: 1280px;
+            padding-top: 1.4rem;
             padding-bottom: 2rem;
         }
-        .hero-card, .panel-card {
-            background: rgba(255, 252, 245, 0.94);
-            border: 1px solid rgba(39, 60, 44, 0.10);
-            border-radius: 22px;
-            box-shadow: 0 14px 36px rgba(52, 66, 45, 0.08);
+        .hero-card, .panel-card, .metric-panel {
+            background: linear-gradient(180deg, rgba(21, 31, 53, 0.96) 0%, rgba(17, 24, 39, 0.96) 100%);
+            border: 1px solid rgba(148, 163, 184, 0.16);
+            border-radius: 24px;
+            box-shadow: 0 18px 55px rgba(0, 0, 0, 0.30);
+            color: #e5eefb;
         }
         .hero-card {
-            padding: 1.5rem 1.7rem;
+            padding: 1.7rem 1.8rem;
             margin-bottom: 1rem;
         }
         .panel-card {
             padding: 1rem 1.2rem;
+            margin-bottom: 1rem;
+        }
+        .metric-panel {
+            padding: 1rem 1.2rem;
+            min-height: 118px;
+        }
+        .eyebrow {
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            font-size: 0.72rem;
+            color: #93c5fd;
+            margin: 0 0 0.4rem 0;
+        }
+        .hero-title {
+            margin: 0 0 0.75rem 0;
+            font-size: 2.2rem;
+            line-height: 1.05;
+            color: white;
+        }
+        .hero-copy {
+            margin: 0;
+            max-width: 820px;
+            color: #c9d7ee;
+            font-size: 1rem;
         }
         .status-chip {
             display: inline-block;
-            padding: 0.35rem 0.65rem;
+            padding: 0.35rem 0.7rem;
             border-radius: 999px;
-            background: #ede4cf;
-            color: #273c2c;
-            font-size: 0.84rem;
-            margin-right: 0.5rem;
+            background: rgba(96, 165, 250, 0.12);
+            border: 1px solid rgba(96, 165, 250, 0.24);
+            color: #dbeafe;
+            font-size: 0.82rem;
+            margin-right: 0.45rem;
+            margin-bottom: 0.45rem;
         }
         .risk-low {
-            color: #1f6f43;
-            font-weight: 700;
+            color: #34d399;
+            font-weight: 800;
         }
         .risk-high {
-            color: #9f2f1f;
+            color: #f97316;
+            font-weight: 800;
+        }
+        .caption-soft {
+            color: #a7b6d0;
+            font-size: 0.92rem;
+        }
+        .explain-card {
+            background: linear-gradient(180deg, rgba(18, 26, 45, 0.98) 0%, rgba(15, 23, 42, 0.98) 100%);
+            border: 1px solid rgba(148, 163, 184, 0.16);
+            border-radius: 22px;
+            padding: 1rem 1.15rem;
+            min-height: 220px;
+        }
+        .section-title {
+            color: #f8fafc;
+            margin: 0 0 0.35rem 0;
+            font-size: 1.08rem;
             font-weight: 700;
+        }
+        .section-copy {
+            color: #cbd5e1;
+            margin: 0 0 0.75rem 0;
+            font-size: 0.92rem;
+        }
+        div[data-testid="stMetricValue"] {
+            color: white;
+        }
+        div[data-testid="stMetricLabel"] {
+            color: #93a3bf;
+        }
+        div[data-testid="stTabs"] button {
+            border-radius: 999px;
+        }
+        [data-testid="stWidgetLabel"] p,
+        label,
+        .stSlider label,
+        .stNumberInput label,
+        .stSelectbox label {
+            color: #dbe7fb !important;
+            font-weight: 600 !important;
+        }
+        section[data-testid="stSidebar"] .stTextInput input,
+        section[data-testid="stSidebar"] .stSelectbox div[data-baseweb="select"] > div,
+        section[data-testid="stSidebar"] [data-testid="stNumberInput"] input {
+            background: rgba(15, 23, 42, 0.9);
+            color: #f8fafc;
+            border: 1px solid rgba(96, 165, 250, 0.25);
+        }
+        div[data-baseweb="select"] > div,
+        [data-testid="stNumberInput"] input,
+        [data-testid="stTextInput"] input,
+        [data-testid="stTextArea"] textarea {
+            background: rgba(20, 31, 52, 0.96) !important;
+            color: #f8fafc !important;
+            border: 1px solid rgba(96, 165, 250, 0.22) !important;
+        }
+        [data-testid="stNumberInput"] button,
+        [data-testid="stNumberInput"] button:hover,
+        [data-testid="stNumberInput"] button:focus {
+            background: rgba(20, 31, 52, 0.96) !important;
+            color: #dbeafe !important;
+            border: none !important;
+            box-shadow: none !important;
+        }
+        [data-testid="stSelectbox"] svg,
+        [data-testid="stNumberInput"] svg {
+            fill: #dbeafe !important;
+        }
+        .stButton > button,
+        .stFormSubmitButton > button {
+            background: linear-gradient(180deg, #193258 0%, #142846 100%) !important;
+            color: #f8fafc !important;
+            border: 1px solid rgba(96, 165, 250, 0.28) !important;
+            border-radius: 12px !important;
+        }
+        .stButton > button:hover,
+        .stFormSubmitButton > button:hover {
+            background: linear-gradient(180deg, #22406d 0%, #183152 100%) !important;
+            color: #ffffff !important;
+            border-color: rgba(147, 197, 253, 0.38) !important;
+        }
+        .impact-list {
+            margin-top: 0.85rem;
+        }
+        .impact-row {
+            margin-bottom: 0.8rem;
+        }
+        .impact-head {
+            display: flex;
+            justify-content: space-between;
+            gap: 1rem;
+            font-size: 0.92rem;
+            margin-bottom: 0.28rem;
+            color: #e2e8f0;
+        }
+        .impact-label {
+            font-weight: 600;
+        }
+        .impact-value {
+            color: #cbd5e1;
+            white-space: nowrap;
+        }
+        .impact-track {
+            width: 100%;
+            height: 10px;
+            background: rgba(148, 163, 184, 0.16);
+            border-radius: 999px;
+            overflow: hidden;
+        }
+        .impact-fill-positive,
+        .impact-fill-negative {
+            height: 10px;
+            border-radius: 999px;
+        }
+        .impact-fill-positive {
+            background: linear-gradient(90deg, #fb923c 0%, #f97316 100%);
+        }
+        .impact-fill-negative {
+            background: linear-gradient(90deg, #34d399 0%, #10b981 100%);
         }
         </style>
         """,
@@ -188,7 +352,7 @@ def apply_styles() -> None:
 
 
 def initialize_session_state() -> None:
-    """Initialise explicitement l'etat pour eviter les reruns incoherents."""
+    """Initialise explicitement l'état pour éviter les reruns incohérents."""
     if "api_base_url" not in st.session_state:
         st.session_state.api_base_url = DEFAULT_API_BASE_URL
     if "selected_profile" not in st.session_state:
@@ -197,8 +361,22 @@ def initialize_session_state() -> None:
         st.session_state.last_payload = None
     if "last_result" not in st.session_state:
         st.session_state.last_result = None
+    if "last_explanation" not in st.session_state:
+        st.session_state.last_explanation = None
     if "last_error" not in st.session_state:
         st.session_state.last_error = None
+    if "batch_error" not in st.session_state:
+        st.session_state.batch_error = None
+    if "batch_source_df" not in st.session_state:
+        st.session_state.batch_source_df = None
+    if "batch_results_df" not in st.session_state:
+        st.session_state.batch_results_df = None
+    if "batch_payloads" not in st.session_state:
+        st.session_state.batch_payloads = None
+    if "batch_selected_employee_id" not in st.session_state:
+        st.session_state.batch_selected_employee_id = None
+    if "batch_selected_explanation" not in st.session_state:
+        st.session_state.batch_selected_explanation = None
 
     for field_name, default_value in FORM_DEFAULTS.items():
         state_key = f"field_{field_name}"
@@ -207,7 +385,7 @@ def initialize_session_state() -> None:
 
 
 def load_profile_into_state(profile_name: str) -> None:
-    """Charge un profil de demonstration dans l'etat des widgets."""
+    """Charge un profil de démonstration dans l'état des widgets."""
     profile = PROFILE_LIBRARY[profile_name]
     for field_name, field_value in profile.items():
         st.session_state[f"field_{field_name}"] = field_value
@@ -217,11 +395,7 @@ def load_profile_into_state(profile_name: str) -> None:
 
 @st.cache_data(ttl=20, show_spinner=False)
 def check_api_health(api_base_url: str) -> tuple[bool, str]:
-    """Teste la disponibilite de l'API.
-
-    Le cache est utile ici car la verification de sante n'a aucun effet de
-    bord et ne doit pas relancer un appel HTTP a chaque rerun Streamlit.
-    """
+    """Teste la disponibilité de l'API cible."""
     try:
         response = httpx.get(f"{api_base_url}/health", timeout=8.0)
         response.raise_for_status()
@@ -234,11 +408,7 @@ def check_api_health(api_base_url: str) -> tuple[bool, str]:
 
 
 def call_prediction_api(api_base_url: str, payload: dict[str, Any]) -> dict[str, Any]:
-    """Appelle l'endpoint de prediction.
-
-    Cette fonction n'est volontairement pas cachée : l'endpoint enregistre une
-    trace métier en base et l'appel doit donc rester effectif à chaque clic.
-    """
+    """Appelle l'endpoint de prediction."""
     response = httpx.post(
         f"{api_base_url}/api/v1/predict",
         json=payload,
@@ -248,17 +418,52 @@ def call_prediction_api(api_base_url: str, payload: dict[str, Any]) -> dict[str,
     return response.json()
 
 
+def call_explain_api(api_base_url: str, payload: dict[str, Any]) -> dict[str, Any]:
+    """Appelle l'endpoint d'explication locale du score."""
+    response = httpx.post(
+        f"{api_base_url}/api/v1/explain",
+        json=payload,
+        timeout=30.0,
+    )
+    response.raise_for_status()
+    return response.json()
+
+
+def call_batch_prediction_api(
+    api_base_url: str,
+    payloads: list[dict[str, Any]],
+    chunk_size: int = 200,
+    progress_callback: Callable[[int, int, int], None] | None = None,
+) -> list[dict[str, Any]]:
+    """Appelle l'endpoint batch en plusieurs paquets."""
+    results: list[dict[str, Any]] = []
+    total_payloads = len(payloads)
+    with httpx.Client(timeout=120.0) as client:
+        for start in range(0, len(payloads), chunk_size):
+            chunk = payloads[start : start + chunk_size]
+            response = client.post(
+                f"{api_base_url}/api/v1/predict/batch",
+                json={"rows": chunk},
+            )
+            response.raise_for_status()
+            results.extend(response.json()["results"])
+            if progress_callback is not None:
+                progress_callback(min(start + len(chunk), total_payloads), total_payloads, len(chunk))
+    return results
+
+
 def render_header() -> None:
-    """Affiche l'entete principal de l'application."""
+    """Affiche l'entête principal."""
     st.markdown(
         """
         <div class="hero-card">
-            <p style="letter-spacing:0.14em;text-transform:uppercase;font-size:0.76rem;color:#7b765f;margin:0;">Portfolio P5</p>
-            <h1 style="margin:0.2rem 0 0.8rem 0;">Prédiction du risque d'attrition collaborateur</h1>
-            <p style="margin:0;max-width:760px;">
-                Cette interface Streamlit présente le modèle final exporté via MLflow
-                au travers d'un formulaire métier en français. Le frontend appelle
-                l'API FastAPI et ne duplique pas la logique de scoring.
+            <p class="eyebrow">Portfolio P5 · Prediction API + Local Explanation</p>
+            <h1 class="hero-title">Attrition Risk Explorer</h1>
+            <p class="hero-copy">
+                Une interface portfolio inspirée des dashboards Streamlit modernes :
+                formulaire métier, appel API, scoring du modèle final et lecture
+                visuelle des facteurs qui poussent un individu vers un risque plus
+                fort ou plus faible.
             </p>
         </div>
         """,
@@ -267,12 +472,12 @@ def render_header() -> None:
 
 
 def render_sidebar() -> str:
-    """Affiche la barre laterale de supervision et de configuration."""
+    """Affiche la barre latérale de pilotage."""
     st.sidebar.markdown("## Connexion API")
     api_base_url = st.sidebar.text_input(
         "URL de l'API",
         key="api_base_url",
-        help="API locale FastAPI ou Space Hugging Face qui expose /health et /api/v1/predict.",
+        help="API locale FastAPI ou Space Hugging Face.",
     ).rstrip("/")
 
     is_healthy, message = check_api_health(api_base_url)
@@ -282,6 +487,9 @@ def render_sidebar() -> str:
         st.sidebar.error(message)
 
     st.sidebar.markdown("## Profils de démonstration")
+    if st.session_state.selected_profile not in PROFILE_LIBRARY:
+        st.session_state.selected_profile = "Profil par défaut"
+
     selected_profile = st.sidebar.selectbox(
         "Charger un scénario",
         options=list(PROFILE_LIBRARY.keys()),
@@ -292,10 +500,48 @@ def render_sidebar() -> str:
         st.rerun()
 
     st.sidebar.markdown("## Référence")
-    st.sidebar.write(
-        "Le formulaire n'expose que les variables réellement consommées par le preprocessing du modèle final."
+    st.sidebar.caption(
+        "Le formulaire et l'explication locale restent strictement alignés sur le modèle final déployé."
     )
     return api_base_url
+
+
+def render_context_panel() -> None:
+    """Affiche un rappel sur le scope fonctionnel de l'écran."""
+    st.markdown(
+        """
+        <div class="panel-card">
+            <span class="status-chip">Frontend Streamlit</span>
+            <span class="status-chip">Backend FastAPI</span>
+            <span class="status-chip">Linear SVC final</span>
+            <span class="status-chip">Explication locale additive</span>
+            <p class="caption-soft" style="margin-top:0.7rem;">
+                L'écran reste aligné sur le modèle effectivement déployé. La prédiction
+                et l'explication locale passent toutes deux par l'API pour éviter les écarts
+                entre la démonstration portfolio et le runtime réel.
+            </p>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def prepare_batch_dataframe(uploaded_df: pd.DataFrame) -> tuple[pd.DataFrame, list[dict[str, Any]]]:
+    """Prepare un fichier type df_EDA pour un scoring batch."""
+    missing_columns = [
+        column for column in BATCH_REQUIRED_COLUMNS if column not in uploaded_df.columns
+    ]
+    if missing_columns:
+        raise ValueError(
+            "Colonnes manquantes pour le batch : " + ", ".join(missing_columns)
+        )
+
+    working_df = uploaded_df.copy()
+    if "id_employee" not in working_df.columns:
+        working_df["id_employee"] = range(1, len(working_df) + 1)
+
+    payloads = working_df[BATCH_REQUIRED_COLUMNS].to_dict(orient="records")
+    return working_df, payloads
 
 
 def render_form() -> tuple[bool, dict[str, Any]]:
@@ -306,9 +552,7 @@ def render_form() -> tuple[bool, dict[str, Any]]:
 
         with col1:
             age = st.slider("Âge", 16, 65, key="field_age")
-            genre = st.selectbox(
-                "Genre", GENRES, index=GENRES.index(st.session_state.field_genre)
-            )
+            genre = st.selectbox("Genre", GENRES, index=GENRES.index(st.session_state.field_genre))
             statut_marital = st.selectbox(
                 "Statut marital",
                 STATUTS_MARITAUX,
@@ -327,11 +571,7 @@ def render_form() -> tuple[bool, dict[str, Any]]:
                 DEPARTEMENTS,
                 index=DEPARTEMENTS.index(st.session_state.field_departement),
             )
-            poste = st.selectbox(
-                "Poste",
-                POSTES,
-                index=POSTES.index(st.session_state.field_poste),
-            )
+            poste = st.selectbox("Poste", POSTES, index=POSTES.index(st.session_state.field_poste))
             revenu_mensuel = st.number_input(
                 "Revenu mensuel brut",
                 min_value=500.0,
@@ -364,9 +604,7 @@ def render_form() -> tuple[bool, dict[str, Any]]:
             frequence_deplacement = st.selectbox(
                 "Fréquence de déplacement",
                 FREQUENCES_DEPLACEMENT,
-                index=FREQUENCES_DEPLACEMENT.index(
-                    st.session_state.field_frequence_deplacement
-                ),
+                index=FREQUENCES_DEPLACEMENT.index(st.session_state.field_frequence_deplacement),
             )
             distance_domicile_travail = st.number_input(
                 "Distance domicile-travail",
@@ -451,10 +689,10 @@ def render_form() -> tuple[bool, dict[str, Any]]:
                 key="field_note_evaluation_actuelle",
             )
             augementation_salaire_precedente = st.number_input(
-                "Augmentation salariale précédente (%)",
+                "Augmentation salariale précédente (fraction, ex. 0.12 = 12 %)",
                 min_value=0.0,
-                max_value=100.0,
-                step=1.0,
+                max_value=1.0,
+                step=0.01,
                 key="field_augementation_salaire_precedente",
             )
 
@@ -462,31 +700,19 @@ def render_form() -> tuple[bool, dict[str, Any]]:
         col7, col8, col9, col10 = st.columns(4)
         with col7:
             satisfaction_employee_environnement = st.slider(
-                "Satisfaction environnement",
-                min_value=1,
-                max_value=4,
-                key="field_satisfaction_employee_environnement",
+                "Satisfaction environnement", min_value=1, max_value=4, key="field_satisfaction_employee_environnement"
             )
         with col8:
             satisfaction_employee_nature_travail = st.slider(
-                "Satisfaction nature du travail",
-                min_value=1,
-                max_value=4,
-                key="field_satisfaction_employee_nature_travail",
+                "Satisfaction nature du travail", min_value=1, max_value=4, key="field_satisfaction_employee_nature_travail"
             )
         with col9:
             satisfaction_employee_equipe = st.slider(
-                "Satisfaction équipe",
-                min_value=1,
-                max_value=4,
-                key="field_satisfaction_employee_equipe",
+                "Satisfaction équipe", min_value=1, max_value=4, key="field_satisfaction_employee_equipe"
             )
         with col10:
             satisfaction_employee_equilibre_pro_perso = st.slider(
-                "Équilibre pro / perso",
-                min_value=1,
-                max_value=4,
-                key="field_satisfaction_employee_equilibre_pro_perso",
+                "Équilibre pro / perso", min_value=1, max_value=4, key="field_satisfaction_employee_equilibre_pro_perso"
             )
 
         submitted = st.form_submit_button(
@@ -528,26 +754,74 @@ def render_form() -> tuple[bool, dict[str, Any]]:
     return submitted, payload
 
 
-def render_context_panel() -> None:
-    """Affiche un rappel sur le scope réel du formulaire."""
-    st.markdown(
-        """
-        <div class="panel-card">
-            <span class="status-chip">Formulaire aligné sur le modèle final</span>
-            <span class="status-chip">Backend FastAPI</span>
-            <span class="status-chip">Scoring MLflow</span>
-            <p style="margin:0.9rem 0 0 0;">
-                Les champs retirés après revue ne sont plus affichés quand ils
-                n'influencent pas réellement la reconstruction des features du modèle.
-            </p>
-        </div>
-        """,
-        unsafe_allow_html=True,
+def _contribution_frame(items: list[dict[str, Any]]) -> pd.DataFrame:
+    """Convertit une liste de contributions en tableau lisible et trié."""
+    if not items:
+        return pd.DataFrame(columns=["Facteur", "Impact", "Contribution", "Valeur"])
+
+    frame = pd.DataFrame(
+        {
+            "Facteur": [item["label"] for item in items],
+            "Impact": [abs(float(item["contribution"])) for item in items],
+            "Contribution": [float(item["contribution"]) for item in items],
+            "Valeur": [float(item["value"]) for item in items],
+        }
+    )
+    return frame.sort_values("Impact", ascending=False).reset_index(drop=True)
+
+
+def render_contribution_bars(frame: pd.DataFrame, positive: bool) -> None:
+    """Affiche un barchart horizontal trié par impact décroissant."""
+    if frame.empty:
+        return
+
+    color = "#f97316" if positive else "#10b981"
+    chart_data = frame.copy()
+    chart_data["Contribution affichee"] = chart_data["Contribution"].map(
+        lambda value: f"{value:+.3f}"
+    )
+    chart_data["Impact affiche"] = chart_data["Impact"].map(lambda value: f"{value:.3f}")
+
+    chart = (
+        alt.Chart(chart_data)
+        .mark_bar(cornerRadiusEnd=6)
+        .encode(
+            x=alt.X(
+                "Impact:Q",
+                title="Niveau de contribution",
+                axis=alt.Axis(labelColor="#cbd5e1", titleColor="#e2e8f0", gridColor="#314158"),
+            ),
+            y=alt.Y(
+                "Facteur:N",
+                sort="-x",
+                title=None,
+                axis=alt.Axis(labelColor="#f8fafc", labelLimit=320),
+            ),
+            color=alt.value(color),
+            tooltip=[
+                alt.Tooltip("Facteur:N", title="Facteur"),
+                alt.Tooltip("Impact affiche:N", title="Impact"),
+                alt.Tooltip("Contribution affichee:N", title="Contribution"),
+                alt.Tooltip("Valeur:Q", title="Valeur", format=".3f"),
+            ],
+        )
+        .properties(height=max(260, 34 * len(chart_data)))
+        .configure_axis(
+            labelColor="#dbe7fb",
+            titleColor="#dbe7fb",
+            tickColor="#51617b",
+            domainColor="#51617b",
+            gridColor="#314158",
+        )
+        .configure_view(fill="#172033", strokeOpacity=0)
+        .configure(background="#172033")
     )
 
+    st.altair_chart(chart, use_container_width=True)
 
-def render_result_panel(result: dict[str, Any]) -> None:
-    """Affiche le résultat de prediction et ses indicateurs."""
+
+def render_summary(result: dict[str, Any], explanation: dict[str, Any] | None) -> None:
+    """Affiche le bloc de synthese principal."""
     prediction = int(result["prediction"])
     score = float(result["score"])
     threshold = float(result["threshold"])
@@ -558,11 +832,12 @@ def render_result_panel(result: dict[str, Any]) -> None:
     st.markdown(
         f"""
         <div class="hero-card">
-            <h3 style="margin-top:0;">Résultat de la prédiction</h3>
-            <p class="{risk_class}" style="font-size:1.2rem;">{risk_label}</p>
-            <p style="margin-bottom:0.4rem;">
-                La décision est calculée à partir du score brut renvoyé par le modèle
-                et du seuil stocké dans la metadata MLflow.
+            <p class="eyebrow">Decision du modele final</p>
+            <h2 style="margin:0 0 0.7rem 0;color:white;">Résultat individuel</h2>
+            <p class="{risk_class}" style="font-size:1.18rem;margin:0 0 0.5rem 0;">{risk_label}</p>
+            <p class="caption-soft" style="margin:0;">
+                Le score est calculé par le pipeline final puis comparé au seuil
+                appris pendant la phase de sélection du modèle.
             </p>
         </div>
         """,
@@ -576,34 +851,373 @@ def render_result_panel(result: dict[str, Any]) -> None:
     col4.metric("Modèle", result["model_name"])
     st.caption(f"Version du modèle : {result['model_version']}")
 
+    if explanation is not None:
+        col5, col6, col7 = st.columns(3)
+        col5.metric("Base value", f"{float(explanation['base_value']):.4f}")
+        col6.metric("Somme positive", f"{float(explanation['positive_sum']):.4f}")
+        col7.metric("Somme négative", f"{float(explanation['negative_sum']):.4f}")
 
-def render_last_call(payload: dict[str, Any] | None) -> None:
-    """Affiche le dernier payload envoyé pour faciliter le debug."""
-    with st.expander("Voir le dernier payload envoyé à l'API"):
-        if payload is None:
-            st.write("Aucun appel n'a encore été lancé.")
+
+def render_explanation(explanation: dict[str, Any] | None) -> None:
+    """Affiche l'explication locale du score de manière visuelle."""
+    if explanation is None:
+        st.info("Aucune explication disponible pour l'instant.")
+        return
+
+    top_positive = _contribution_frame(explanation["top_positive"])
+    top_negative = _contribution_frame(explanation["top_negative"])
+
+    st.markdown(
+        """
+        <div class="panel-card">
+            <p class="eyebrow">Explication locale</p>
+            <h3 style="margin-top:0;color:white;">Variables qui poussent le score</h3>
+            <p class="caption-soft" style="margin-bottom:0;">
+                Pour ce modèle linéaire, l'explication correspond à la décomposition additive
+                du score individuel après standardisation des features.
+            </p>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    col1, col2 = st.columns(2)
+    with col1:
+        st.markdown(
+            """
+            <div class="explain-card">
+                <p class="section-title">Facteurs qui augmentent le risque de départ</p>
+                <p class="section-copy">
+                    Triés par impact décroissant sur le score du modèle.
+                </p>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+        if not top_positive.empty:
+            render_contribution_bars(top_positive, positive=True)
+            st.dataframe(
+                top_positive.style.format(
+                    {"Impact": "{:.3f}", "Contribution": "{:+.3f}", "Valeur": "{:.3f}"}
+                ),
+                use_container_width=True,
+                hide_index=True,
+            )
         else:
-            st.json(payload)
+            st.write("Aucune contribution positive notable.")
+
+    with col2:
+        st.markdown(
+            """
+            <div class="explain-card">
+                <p class="section-title">Facteurs qui diminuent le risque de départ</p>
+                <p class="section-copy">
+                    Triés par impact décroissant sur le score du modèle.
+                </p>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+        if not top_negative.empty:
+            render_contribution_bars(top_negative, positive=False)
+            st.dataframe(
+                top_negative.style.format(
+                    {"Impact": "{:.3f}", "Contribution": "{:+.3f}", "Valeur": "{:.3f}"}
+                ),
+                use_container_width=True,
+                hide_index=True,
+            )
+        else:
+            st.write("Aucune contribution négative notable.")
+
+
+def render_payload(payload: dict[str, Any] | None) -> None:
+    """Affiche le dernier payload envoyé."""
+    if payload is None:
+        st.write("Aucun appel n'a encore été lancé.")
+    else:
+        st.json(payload)
+
+
+def render_batch_summary(batch_results_df: pd.DataFrame) -> None:
+    """Affiche les indicateurs globaux issus du scoring batch."""
+    total_rows = len(batch_results_df)
+    total_risk = int(batch_results_df["prediction"].sum())
+    risk_rate = (total_risk / total_rows) if total_rows else 0.0
+    average_score = float(batch_results_df["score"].mean()) if total_rows else 0.0
+    threshold = float(batch_results_df["threshold"].iloc[0]) if total_rows else 0.0
+
+    col1, col2, col3, col4 = st.columns(4)
+    col1.metric("Employés scorés", total_rows)
+    col2.metric("Départs prédits", total_risk)
+    col3.metric("Taux de risque", f"{risk_rate:.1%}")
+    col4.metric("Score moyen", f"{average_score:.3f}", delta=f"Seuil {threshold:.3f}")
+
+    chart_data = (
+        batch_results_df["prediction"]
+        .map({0: "Risque faible", 1: "Risque élevé"})
+        .value_counts()
+        .rename_axis("Classe")
+        .reset_index(name="Volume")
+    )
+    chart = (
+        alt.Chart(chart_data)
+        .mark_bar(cornerRadiusTopLeft=6, cornerRadiusTopRight=6)
+        .encode(
+            x=alt.X("Classe:N", axis=alt.Axis(labelColor="#dbe7fb", title=None)),
+            y=alt.Y(
+                "Volume:Q",
+                axis=alt.Axis(labelColor="#dbe7fb", titleColor="#dbe7fb"),
+            ),
+            color=alt.Color(
+                "Classe:N",
+                scale=alt.Scale(
+                    domain=["Risque faible", "Risque élevé"],
+                    range=["#10b981", "#f97316"],
+                ),
+                legend=None,
+            ),
+            tooltip=["Classe:N", "Volume:Q"],
+        )
+        .configure_axis(
+            labelColor="#dbe7fb",
+            titleColor="#dbe7fb",
+            tickColor="#51617b",
+            domainColor="#51617b",
+            gridColor="#314158",
+        )
+        .configure_view(fill="#172033", strokeOpacity=0)
+        .configure(background="#172033")
+    )
+    st.altair_chart(chart, use_container_width=True)
+
+    top_risk_df = (
+        batch_results_df.sort_values("score", ascending=False)
+        .loc[:, ["id_employee", "prediction", "score", "model_name"]]
+        .head(10)
+        .copy()
+    )
+    top_risk_df["prediction"] = top_risk_df["prediction"].map(
+        {0: "Risque faible", 1: "Risque élevé"}
+    )
+
+    st.markdown("#### Employés les plus exposés")
+    st.dataframe(
+        top_risk_df.style.format({"score": "{:.3f}"}),
+        use_container_width=True,
+        hide_index=True,
+    )
+
+
+def render_batch_section(api_base_url: str) -> None:
+    """Affiche le flux d'upload et d'analyse batch."""
+    st.subheader("Analyse batch")
+    st.caption(
+        "Chargez un fichier type `df_EDA.csv` pour scorer un ensemble d'employés, "
+        "visualiser les résultats globaux puis sélectionner un individu pour l'analyse locale."
+    )
+
+    uploaded_file = st.file_uploader(
+        "Fichier CSV à scorer",
+        type=["csv"],
+        accept_multiple_files=False,
+        key="batch_csv_uploader",
+    )
+
+    if st.button("Lancer le scoring batch", use_container_width=True):
+        if uploaded_file is None:
+            st.session_state.batch_error = "Aucun fichier CSV n'a été fourni."
+        else:
+            try:
+                uploaded_df = pd.read_csv(uploaded_file)
+                working_df, payloads = prepare_batch_dataframe(uploaded_df)
+                progress_container = st.container()
+                progress_bar = progress_container.progress(
+                    0.0, text="Préparation du traitement batch..."
+                )
+                progress_caption = progress_container.empty()
+
+                def update_batch_progress(processed: int, total: int, chunk_len: int) -> None:
+                    """Met à jour l'avancement visible du scoring batch."""
+                    ratio = (processed / total) if total else 1.0
+                    progress_bar.progress(
+                        ratio,
+                        text=f"Traitement batch en cours... {processed}/{total} employés",
+                    )
+                    progress_caption.caption(
+                        f"Dernier paquet traité : {chunk_len} employés."
+                    )
+
+                batch_results = call_batch_prediction_api(
+                    api_base_url,
+                    payloads,
+                    progress_callback=update_batch_progress,
+                )
+                batch_results_df = pd.DataFrame(batch_results)
+                batch_results_df.insert(
+                    0, "id_employee", working_df["id_employee"].tolist()
+                )
+
+                progress_bar.progress(
+                    1.0,
+                    text=f"Traitement terminé : {len(batch_results_df)}/{len(payloads)} employés scorés",
+                )
+                progress_caption.caption(
+                    "Le scoring batch est terminé. Vous pouvez maintenant explorer les résultats."
+                )
+
+                st.session_state.batch_source_df = working_df
+                st.session_state.batch_payloads = payloads
+                st.session_state.batch_results_df = batch_results_df
+                st.session_state.batch_selected_employee_id = int(
+                    batch_results_df.iloc[0]["id_employee"]
+                )
+                st.session_state.batch_selected_explanation = None
+                st.session_state.batch_error = None
+            except httpx.HTTPStatusError as exc:
+                response_text = exc.response.text if exc.response is not None else str(exc)
+                status_code = exc.response.status_code if exc.response is not None else "?"
+                st.session_state.batch_error = f"Erreur HTTP {status_code} : {response_text}"
+            except Exception as exc:
+                st.session_state.batch_error = str(exc)
+
+    if st.session_state.batch_error:
+        st.error(st.session_state.batch_error)
+
+    if st.session_state.batch_results_df is None:
+        return
+
+    batch_results_df = st.session_state.batch_results_df
+    render_batch_summary(batch_results_df)
+    display_df = batch_results_df.copy()
+    display_df["prediction_label"] = display_df["prediction"].map(
+        {0: "Risque faible", 1: "Risque élevé"}
+    )
+    ordered_columns = [
+        "id_employee",
+        "prediction_label",
+        "score",
+        "threshold",
+        "model_name",
+        "model_version",
+    ]
+    st.markdown("#### Vue détaillée du batch")
+    st.dataframe(
+        display_df[ordered_columns].sort_values("score", ascending=False).style.format(
+            {"score": "{:.3f}", "threshold": "{:.3f}"}
+        ),
+        use_container_width=True,
+        hide_index=True,
+    )
+
+    employee_ids = batch_results_df["id_employee"].tolist()
+    top_risk_df = (
+        batch_results_df.sort_values("score", ascending=False)
+        .head(5)
+        .loc[:, ["id_employee", "score", "prediction"]]
+        .copy()
+    )
+    top_risk_df["prediction_label"] = top_risk_df["prediction"].map(
+        {0: "Risque faible", 1: "Risque élevé"}
+    )
+    top_risk_options = [
+        f"ID {int(row.id_employee)} · score {row.score:.3f} · {row.prediction_label}"
+        for row in top_risk_df.itertuples(index=False)
+    ]
+    top_risk_map = {
+        option: int(employee_id)
+        for option, employee_id in zip(top_risk_options, top_risk_df["id_employee"].tolist())
+    }
+
+    st.markdown("#### Analyse locale d'un employé")
+    st.caption(
+        "Choisissez un identifiant précis ou utilisez un raccourci vers les profils les plus risqués."
+    )
+
+    selection_col, action_col = st.columns([3, 1])
+    with selection_col:
+        default_index = (
+            employee_ids.index(st.session_state.batch_selected_employee_id)
+            if st.session_state.batch_selected_employee_id in employee_ids
+            else 0
+        )
+        selected_employee_id = st.selectbox(
+            "Employé à analyser",
+            options=employee_ids,
+            index=default_index,
+            help="Liste complète des identifiants disponibles dans le batch.",
+        )
+    with action_col:
+        st.markdown("<div style='height:1.85rem'></div>", unsafe_allow_html=True)
+        explain_clicked = st.button("Afficher l'analyse", use_container_width=True)
+
+    quick_col, quick_action_col = st.columns([3, 1])
+    with quick_col:
+        quick_pick = st.selectbox(
+            "Raccourci : profils les plus risqués",
+            options=top_risk_options,
+            index=0,
+            help="Sélection rapide des scores les plus élevés du batch.",
+        )
+    with quick_action_col:
+        st.markdown("<div style='height:1.85rem'></div>", unsafe_allow_html=True)
+        if st.button("Charger ce profil", use_container_width=True):
+            selected_employee_id = top_risk_map[quick_pick]
+            st.session_state.batch_selected_employee_id = int(selected_employee_id)
+            explain_clicked = True
+
+    if explain_clicked:
+        try:
+            selected_index = batch_results_df.index[
+                batch_results_df["id_employee"] == selected_employee_id
+            ][0]
+            selected_payload = st.session_state.batch_payloads[selected_index]
+            explanation = call_explain_api(api_base_url, selected_payload)
+            result = batch_results_df.iloc[selected_index].to_dict()
+            st.session_state.batch_selected_employee_id = int(selected_employee_id)
+            st.session_state.batch_selected_explanation = {
+                "payload": selected_payload,
+                "result": result,
+                "explanation": explanation,
+            }
+            st.session_state.batch_error = None
+        except httpx.HTTPStatusError as exc:
+            response_text = exc.response.text if exc.response is not None else str(exc)
+            status_code = exc.response.status_code if exc.response is not None else "?"
+            st.session_state.batch_error = f"Erreur HTTP {status_code} : {response_text}"
+        except Exception as exc:
+            st.session_state.batch_error = str(exc)
+
+    batch_selected = st.session_state.batch_selected_explanation
+    if batch_selected is not None:
+        st.markdown("---")
+        st.subheader(
+            f"Analyse locale de l'employé {st.session_state.batch_selected_employee_id}"
+        )
+        render_summary(batch_selected["result"], batch_selected["explanation"])
+        render_explanation(batch_selected["explanation"])
+        render_payload(batch_selected["payload"])
 
 
 def run_prediction_flow(api_base_url: str, payload: dict[str, Any]) -> None:
-    """Gere l'appel API et stocke explicitement le résultat dans le session state."""
+    """Lance la prédiction puis l'explication locale."""
     st.session_state.last_payload = payload
     st.session_state.last_error = None
+    st.session_state.last_result = None
+    st.session_state.last_explanation = None
 
     try:
         result = call_prediction_api(api_base_url, payload)
+        explanation = call_explain_api(api_base_url, payload)
     except httpx.HTTPStatusError as exc:
         response_text = exc.response.text if exc.response is not None else str(exc)
-        st.session_state.last_result = None
-        st.session_state.last_error = (
-            f"Erreur HTTP {exc.response.status_code} : {response_text}"
-        )
+        status_code = exc.response.status_code if exc.response is not None else "?"
+        st.session_state.last_error = f"Erreur HTTP {status_code} : {response_text}"
     except Exception as exc:
-        st.session_state.last_result = None
         st.session_state.last_error = f"Erreur lors de l'appel à l'API : {exc}"
     else:
         st.session_state.last_result = result
+        st.session_state.last_explanation = explanation
 
 
 def main() -> None:
@@ -616,18 +1230,32 @@ def main() -> None:
     render_header()
     render_context_panel()
 
-    submitted, payload = render_form()
+    mode_tabs = st.tabs(["Analyse unitaire", "Analyse batch"])
 
-    if submitted:
-        run_prediction_flow(api_base_url, payload)
+    with mode_tabs[0]:
+        submitted, payload = render_form()
+        if submitted:
+            run_prediction_flow(api_base_url, payload)
 
-    if st.session_state.last_error:
-        st.error(st.session_state.last_error)
+        if st.session_state.last_error:
+            st.error(st.session_state.last_error)
 
-    if st.session_state.last_result:
-        render_result_panel(st.session_state.last_result)
+        if st.session_state.last_result is not None:
+            tabs = st.tabs(["Synthèse", "Interprétation locale", "Payload"])
+            with tabs[0]:
+                render_summary(
+                    st.session_state.last_result,
+                    st.session_state.last_explanation,
+                )
+            with tabs[1]:
+                render_explanation(st.session_state.last_explanation)
+            with tabs[2]:
+                render_payload(st.session_state.last_payload)
+        else:
+            render_payload(st.session_state.last_payload)
 
-    render_last_call(st.session_state.last_payload)
+    with mode_tabs[1]:
+        render_batch_section(api_base_url)
 
 
 if __name__ == "__main__":

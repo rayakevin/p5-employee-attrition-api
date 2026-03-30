@@ -15,7 +15,7 @@ class Settings(BaseSettings):
     environment: str = "development"
     debug: bool = True
     # SQLite est utilisé comme valeur locale non sensible pour démarrer vite.
-    database_url: str = "sqlite:///./p5_attrition.db"
+    database_url: str = "sqlite:////home/user/data/p5_attrition.db"
 
     model_config = SettingsConfigDict(
         env_file=".env",

@@ -1,6 +1,8 @@
 FROM python:3.11-slim
 
-RUN useradd -m -u 1000 user
+RUN useradd -m -u 1000 user && \
+    mkdir -p /home/user/data && \
+    chown -R user:user /home/user
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \

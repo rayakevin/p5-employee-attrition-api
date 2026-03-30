@@ -22,7 +22,12 @@ from app.ml.preprocess import repair_common_mojibake
 
 
 def prettify_feature_name(feature_name: str) -> str:
-    """Rend un nom de feature technique plus lisible pour un utilisateur."""
+    """Rend un nom de feature technique plus lisible pour un utilisateur.
+
+    Cette étape est importante car le modèle manipule des noms de colonnes
+    orientés machine, alors que l'interface portfolio et la soutenance
+    nécessitent des libellés métier plus compréhensibles.
+    """
     repaired_name = repair_common_mojibake(feature_name)
     replacements = {
         "revenu_mensuel_log": "Revenu mensuel (log)",
@@ -99,7 +104,14 @@ def explain_prediction_locally(
     model_input: pd.DataFrame,
     top_n: int = 8,
 ) -> dict[str, Any]:
-    """Retourne une decomposition locale du score du modele pour un individu."""
+    """Retourne une decomposition locale du score du modele pour un individu.
+
+    La fonction :
+    1. standardise les features comme pendant l'entraînement ;
+    2. applique les coefficients du modèle linéaire ;
+    3. calcule les contributions individuelles ;
+    4. renvoie les facteurs les plus positifs et les plus négatifs.
+    """
     scaler, linear_model, metadata = _get_linear_components()
 
     scaled_input = scaler.transform(model_input)

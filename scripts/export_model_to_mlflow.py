@@ -25,7 +25,12 @@ METADATA_PATH = ARTIFACTS_DIR / "metadata.json"
 
 
 def load_training_data() -> tuple[pd.DataFrame, pd.Series]:
-    """Charge le dataset modèle puis sépare les variables explicatives et la cible."""
+    """Charge le dataset modèle puis sépare les variables explicatives et la cible.
+
+    Le fichier `df_MODEL.csv` correspond déjà au schéma final d'entraînement.
+    On en retire la cible et l'identifiant pour ne conserver que les colonnes
+    réellement apprises par le pipeline scikit-learn.
+    """
     df = pd.read_csv(PROJECT_ROOT / "data" / "processed" / "df_MODEL.csv")
 
     target_col = "a_quitte_l_entreprise"
@@ -36,7 +41,14 @@ def load_training_data() -> tuple[pd.DataFrame, pd.Series]:
 
 
 def build_model() -> Pipeline:
-    """Construit la pipeline scikit-learn exportée dans MLflow."""
+    """Construit la pipeline scikit-learn exportée dans MLflow.
+
+    Le modèle final retenu pour le projet est un `LinearSVC` précédé d'un
+    `StandardScaler`, ce qui permet à la fois :
+    - un bon compromis de performance sur le dataset ;
+    - une inference rapide ;
+    - une explication locale additive fidèle.
+    """
     return Pipeline([
         ("scaler", StandardScaler()),
         ("model", LinearSVC(
@@ -48,7 +60,16 @@ def build_model() -> Pipeline:
 
 
 def main() -> None:
-    """Entraîne, loggue et exporte le modèle au format MLflow."""
+    """Entraîne, loggue et exporte le modèle au format MLflow.
+
+    Le script couvre l'ensemble de la chaîne d'export :
+    1. chargement des données d'entraînement ;
+    2. fit du pipeline final ;
+    3. création de la signature et d'un input example ;
+    4. log MLflow ;
+    5. copie locale de l'artefact ;
+    6. écriture de la metadata applicative utilisée ensuite par l'API.
+    """
     X, y = load_training_data()
 
     model = build_model()

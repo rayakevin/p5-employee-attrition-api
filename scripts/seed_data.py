@@ -47,7 +47,14 @@ def load_raw_sources() -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
 
 
 def build_employee_source_dataframe() -> pd.DataFrame:
-    """Fusionne et normalise les trois sources dans un DataFrame unique."""
+    """Fusionne et normalise les trois sources dans un DataFrame unique.
+
+    Etapes realisees :
+    1. charger les trois CSV bruts du projet ;
+    2. verifier que leur cardinalité est compatible avec une fusion par index ;
+    3. concaténer les colonnes métier ;
+    4. normaliser les booleens et pourcentages attendus par la base source.
+    """
     sirh, eval_df, sondage = load_raw_sources()
 
     if not (len(sirh) == len(eval_df) == len(sondage)):
@@ -65,6 +72,8 @@ def build_employee_source_dataframe() -> pd.DataFrame:
         axis=1,
     )
 
+    # On convertit ici les drapeaux textuels du brut en booleens afin de
+    # faciliter leur stockage et leur réutilisation applicative.
     merged["heure_supplementaires"] = merged["heure_supplementaires"].map(
         lambda value: parse_bool(value, {"OUI", "YES", "TRUE", "1"})
     )
@@ -82,7 +91,15 @@ def build_employee_source_dataframe() -> pd.DataFrame:
 
 
 def seed_employee_source() -> int:
-    """Recharge la table `employees_source` a partir des CSV bruts."""
+    """Recharge la table `employees_source` a partir des CSV bruts.
+
+    La stratégie retenue est volontairement simple :
+    - reconstruire le dataset complet en mémoire ;
+    - vider la table cible ;
+    - réinsérer toutes les lignes normalisées.
+
+    Cela garantit un état cohérent de la table source à chaque relance.
+    """
     dataset = build_employee_source_dataframe()
     records = dataset.to_dict(orient="records")
 
@@ -97,7 +114,7 @@ def seed_employee_source() -> int:
 
 
 def main() -> None:
-    """Charge les donnees source dans la base configuree."""
+    """Charge les donnees source dans la base configuree et affiche le volume inséré."""
     inserted_rows = seed_employee_source()
     print(f"Employee source dataset loaded successfully: {inserted_rows} rows.")
 

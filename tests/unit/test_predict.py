@@ -133,3 +133,42 @@ def test_predict_invalid_age() -> None:
     assert requests == []
     assert results == []
     assert logs == []
+
+
+def test_explain_valid() -> None:
+    """Verifie que l'explication locale renvoie une structure exploitable."""
+    set_test_db_override()
+    payload = build_valid_payload()
+
+    response = client.post("/api/v1/explain", json=payload)
+
+    assert response.status_code == 200
+    data = response.json()
+
+    assert "model_name" in data
+    assert "model_version" in data
+    assert "score" in data
+    assert "base_value" in data
+    assert "positive_sum" in data
+    assert "negative_sum" in data
+    assert "top_positive" in data
+    assert "top_negative" in data
+
+    assert isinstance(data["top_positive"], list)
+    assert isinstance(data["top_negative"], list)
+    assert len(data["top_positive"]) > 0
+    assert len(data["top_negative"]) > 0
+
+
+def test_predict_batch_valid() -> None:
+    """Verifie qu'un batch simple renvoie une liste de predictions."""
+    set_test_db_override()
+    payload = {"rows": [build_valid_payload(), build_valid_payload()]}
+
+    response = client.post("/api/v1/predict/batch", json=payload)
+
+    assert response.status_code == 200
+    data = response.json()
+    assert "results" in data
+    assert len(data["results"]) == 2
+    assert all("prediction" in item for item in data["results"])

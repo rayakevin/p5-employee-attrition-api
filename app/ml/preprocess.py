@@ -24,6 +24,7 @@ from app.ml.loader import load_model_metadata
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 ARTIFACTS_DIR = PROJECT_ROOT / "artifacts" / "model"
 PREPROCESSING_REFERENCE_PATH = ARTIFACTS_DIR / "preprocessing_reference.json"
+EDA_REFERENCE_PATH = PROJECT_ROOT / "data" / "processed" / "df_EDA.csv"
 
 # Les valeurs conseillees cote API sont les libelles metier issus des CSV bruts.
 # Certains alias anglais sont conserves pour ne pas casser les appels historiques.
@@ -175,18 +176,80 @@ def load_preprocessing_reference() -> dict:
     """Charge les references de preprocessing calculees a l'entrainement.
 
     Si aucun fichier de reference n'existe encore, on renvoie une structure
-    vide afin de garder une inference fonctionnelle avec des valeurs par
-    defaut.
+    reconstruite a partir du jeu de donnees de reference du projet pour
+    rester alignes avec les transformations du notebook d'entrainement.
     """
     if PREPROCESSING_REFERENCE_PATH.exists():
         with open(PREPROCESSING_REFERENCE_PATH, "r", encoding="utf-8") as f:
-            return json.load(f)
+            references = json.load(f)
+        if (
+            references.get("mediane_revenu_par_niveau")
+            and references.get("mediane_revenu_par_poste_regroupe")
+        ):
+            return references
+
+    return build_default_preprocessing_reference()
+
+
+def build_default_preprocessing_reference() -> dict:
+    """Reconstruit les references metier depuis `df_EDA.csv`.
+
+    Le modele final a ete entraine avec des medianes calculees sur le jeu
+    preprocessé. Si le fichier de reference exporté est vide, on recalcule
+    ces statistiques localement pour garder une inference numeriquement
+    cohérente avec le notebook.
+    """
+    if not EDA_REFERENCE_PATH.exists():
+        return {
+            "poste_mapping": {},
+            "domaine_etude_mapping": {},
+            "mediane_revenu_par_niveau": {},
+            "mediane_revenu_par_poste_regroupe": {},
+        }
+
+    df_eda = pd.read_csv(EDA_REFERENCE_PATH)
+    rare_postes = (
+        df_eda["poste"].value_counts()[df_eda["poste"].value_counts() < 100].index
+    )
+    poste_mapping = {
+        str(raw_value): "Autre" if raw_value in rare_postes else str(raw_value)
+        for raw_value in df_eda["poste"].dropna().unique()
+    }
+    rare_domaines = (
+        df_eda["domaine_etude"]
+        .value_counts()[df_eda["domaine_etude"].value_counts() < 100]
+        .index
+    )
+    domaine_etude_mapping = {
+        str(raw_value): "Autre" if raw_value in rare_domaines else str(raw_value)
+        for raw_value in df_eda["domaine_etude"].dropna().unique()
+    }
+
+    df_eda["poste_regroupe"] = df_eda["poste"].apply(
+        lambda value: regroup_poste(str(value), poste_mapping)
+    )
+    df_eda["domaine_etude_regroupe"] = df_eda["domaine_etude"].apply(
+        lambda value: regroup_domaine_etude(str(value), domaine_etude_mapping)
+    )
+
+    mediane_revenu_par_niveau = (
+        df_eda.groupby("niveau_hierarchique_poste")["revenu_mensuel"].median().to_dict()
+    )
+    mediane_revenu_par_poste_regroupe = (
+        df_eda.groupby("poste_regroupe")["revenu_mensuel"].median().to_dict()
+    )
 
     return {
-        "poste_mapping": {},
-        "domaine_etude_mapping": {},
-        "mediane_revenu_par_niveau": {},
-        "mediane_revenu_par_poste_regroupe": {},
+        "poste_mapping": poste_mapping,
+        "domaine_etude_mapping": domaine_etude_mapping,
+        "mediane_revenu_par_niveau": {
+            str(key): float(value)
+            for key, value in mediane_revenu_par_niveau.items()
+        },
+        "mediane_revenu_par_poste_regroupe": {
+            str(key): float(value)
+            for key, value in mediane_revenu_par_poste_regroupe.items()
+        },
     }
 
 
@@ -232,6 +295,21 @@ def normalize_binary_flag(value: str | int | bool, field_name: str) -> int:
     if normalized is None:
         raise ValueError(f"Valeur binaire non supportee pour {field_name}: {value}")
     return normalized
+
+
+def normalize_salary_increase(value: float | int) -> float:
+    """Normalise l'augmentation salariale au format appris par le modele.
+
+    Dans les notebooks, la variable a ete convertie depuis un pourcentage texte
+    vers une fraction numerique : `12 %` devient `0.12`.
+    On accepte donc les deux saisies cote API :
+    - `0.12` si le client envoie deja la fraction ;
+    - `12` si le client pense encore en pourcentage.
+    """
+    numeric_value = float(value)
+    if numeric_value > 1:
+        return numeric_value / 100.0
+    return numeric_value
 
 
 def resolve_expected_feature_name(
@@ -319,17 +397,21 @@ def build_model_features(payload: dict) -> pd.DataFrame:
         mediane_revenu_par_poste_regroupe.get(poste_regroupe, payload["revenu_mensuel"])
     )
 
+    augmentation_salaire_precedente = normalize_salary_increase(
+        payload["augementation_salaire_precedente"]
+    )
+
     ratio_anciennete_poste = safe_divide(
         payload["annees_dans_le_poste_actuel"],
-        payload["annees_dans_l_entreprise"],
+        payload["annees_dans_l_entreprise"] + 1,
     )
     ratio_anciennete_manager = safe_divide(
         payload["annes_sous_responsable_actuel"],
-        payload["annees_dans_l_entreprise"],
+        payload["annees_dans_l_entreprise"] + 1,
     )
     ratio_experience_entreprise = safe_divide(
         payload["annees_dans_l_entreprise"],
-        payload["annee_experience_totale"],
+        payload["annee_experience_totale"] + 1,
     )
 
     evolution_evaluation = (
@@ -337,29 +419,28 @@ def build_model_features(payload: dict) -> pd.DataFrame:
     )
 
     jamais_promu = int(payload["annees_depuis_la_derniere_promotion"] == 0)
-    progression_salariale_faible = int(payload["augementation_salaire_precedente"] < 10)
+    progression_salariale_faible = int(augmentation_salaire_precedente < 0.10)
     bonne_perf_peu_augmente = int(
         payload["note_evaluation_actuelle"] >= 4
-        and payload["augementation_salaire_precedente"] < 10
+        and augmentation_salaire_precedente < 0.10
     )
     sous_remunere_niveau = int(payload["revenu_mensuel"] < mediane_niveau)
-    mobilite_interne_potentielle = int(
-        payload["annees_dans_le_poste_actuel"] >= 3
-        and payload["annees_depuis_la_derniere_promotion"] >= 2
+    mobilite_interne_potentielle = (
+        payload["annees_dans_l_entreprise"] - payload["annees_dans_le_poste_actuel"]
     )
 
     retard_promotion_relatif = safe_divide(
         payload["annees_depuis_la_derniere_promotion"],
-        payload["annees_dans_l_entreprise"],
+        payload["annees_dans_l_entreprise"] + 1,
     )
 
     revenu_par_niveau = safe_divide(
         payload["revenu_mensuel"],
-        max(payload["niveau_hierarchique_poste"], 1),
+        mediane_niveau,
     )
     revenu_par_poste = safe_divide(
         payload["revenu_mensuel"],
-        max(payload["nombre_employee_sous_responsabilite"] + 1, 1),
+        mediane_poste,
     )
 
     # Ce dictionnaire reconstruit d'abord les variables numeriques et derivees
@@ -378,7 +459,7 @@ def build_model_features(payload: dict) -> pd.DataFrame:
         "heure_supplementaires": normalize_binary_flag(
             payload["heure_supplementaires"], "heure_supplementaires"
         ),
-        "augementation_salaire_precedente": payload["augementation_salaire_precedente"],
+        "augementation_salaire_precedente": augmentation_salaire_precedente,
         "nombre_participation_pee": payload["nombre_participation_pee"],
         "nb_formations_suivies": payload["nb_formations_suivies"],
         "distance_domicile_travail": payload["distance_domicile_travail"],

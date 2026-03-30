@@ -10,6 +10,7 @@ fonction de prédiction.
 from sqlalchemy.orm import Session
 
 from app.db.models import ApiAuditLog, PredictionRequest, PredictionResult
+from app.ml.explainer import explain_prediction_locally
 from app.ml.predictor import predict_attrition
 from app.ml.preprocess import build_model_features
 
@@ -123,3 +124,27 @@ def get_prediction(
             error_message=str(exc),
         )
         raise
+
+
+def get_prediction_explanation(payload: dict) -> dict:
+    """Construit une explication locale du score pour un payload donne.
+
+    Cette route ne persiste pas de nouvelle trace en base : elle est destinee
+    a l'analyse visuelle du score individuel, par exemple dans Streamlit.
+    """
+    model_input = build_model_features(payload)
+    return explain_prediction_locally(model_input=model_input)
+
+
+def get_batch_predictions(payloads: list[dict]) -> list[dict]:
+    """Calcule des predictions unitaires pour une liste de payloads.
+
+    Ce flux est destine a l'analyse batch et ne persiste pas de traces de
+    prediction en base, afin d'eviter de polluer la traçabilite technique
+    avec des jeux de demonstration ou d'exploration.
+    """
+    results: list[dict] = []
+    for payload in payloads:
+        model_input = build_model_features(payload)
+        results.append(predict_attrition(model_input))
+    return results

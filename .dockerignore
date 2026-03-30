@@ -9,7 +9,11 @@ __pycache__
 htmlcov
 .coverage
 docs
+data
+notebooks
+tests
 mlruns
 tmp
 temp
 *.db
+mlflow.db

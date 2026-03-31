@@ -49,7 +49,7 @@ Route de prédiction unitaire.
 Entrée :
 
 - un payload métier validé par `PredictionInput` ;
-- des valeurs en français alignées sur les CSV bruts du projet.
+- des valeurs alignées sur les CSV bruts du projet.
 
 Sortie :
 
@@ -67,8 +67,8 @@ Cette route écrit aussi en base :
 
 Pré-requis d'accès :
 
-- en-tête `X-API-Key`
-- valeur lue depuis `P5_API_KEY`
+- en-tête `X-API-Key` ;
+- valeur lue depuis `P5_API_KEY`.
 
 ### `POST /api/v1/explain`
 
@@ -118,7 +118,7 @@ Exemples de valeurs attendues :
 
 ## 4. Flux technique détaillé
 
-### 4.1. Prédiction unitaire
+### 4.1 Prédiction unitaire
 
 1. FastAPI reçoit la requête HTTP.
 2. `PredictionInput` valide et nettoie les données.
@@ -130,7 +130,7 @@ Exemples de valeurs attendues :
 8. Un audit log est écrit.
 9. La réponse HTTP est renvoyée au client.
 
-### 4.2. Explication locale
+### 4.2 Explication locale
 
 1. Le payload est validé comme pour une prédiction normale.
 2. Le même preprocessing est appliqué.
@@ -138,7 +138,7 @@ Exemples de valeurs attendues :
 4. La `decision_function` est décomposée en contributions feature par feature.
 5. L'API renvoie les variables qui augmentent et diminuent le plus le score.
 
-### 4.3. Batch
+### 4.3 Batch
 
 1. Le client envoie une liste de lignes.
 2. Chaque ligne est préprocessée puis scorée individuellement.
@@ -165,14 +165,15 @@ Point important :
 
 - cette base SQLite sert uniquement à garder l'API fonctionnelle ;
 - elle n'a pas vocation à remplacer une vraie base de persistance durable ;
+- son contenu peut être perdu à chaque cycle de vie du conteneur ;
 - le feature engineering ne dépend plus de cette base.
 
 ## 6. Gestion des erreurs
 
 Le comportement d'erreur suit la logique suivante :
 
-- erreur métier ou de validation complémentaire : `400`
-- erreur interne : `500`
+- erreur métier ou de validation complémentaire : `400` ;
+- erreur interne : `500`.
 
 Exemples :
 
@@ -198,6 +199,8 @@ Bonnes pratiques :
 - utiliser les secrets GitHub pour les déploiements ;
 - ne jamais committer une vraie clé de production ;
 - séparer autant que possible les secrets locaux, CI/CD et production.
+
+Ces bonnes pratiques sont également rappelées dans le `README.md` racine du projet.
 
 ## 8. Exemples d'utilisation
 

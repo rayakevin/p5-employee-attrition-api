@@ -1,6 +1,6 @@
 # P5 - API de prediction d'attrition des employes
 
-## 1. Presentation
+## 1. Présentation
 
 Ce depot correspond a la mise en production du modele de prediction d'attrition construit au projet 4, puis industrialise dans le cadre du projet 5.
 
@@ -39,7 +39,7 @@ L'application permet de :
 - `artifacts/model/` : artefacts MLflow et metadata applicative
 - `docs/` : documentation de travail, architecture et exploitation
 
-### 3.2 Flux de prediction
+### 3.2 Flux de prédiction
 
 1. L'API recoit un payload JSON.
 2. Pydantic valide les types et la structure.
@@ -131,7 +131,7 @@ GitHub Actions est utilise pour :
 - separer CI et CD ;
 - pousser les Spaces Hugging Face depuis le repository.
 
-## 5. Prerequis
+## 5. Prérequis
 
 Pour travailler localement sur le projet :
 
@@ -142,14 +142,14 @@ Pour travailler localement sur le projet :
 
 ## 6. Installation locale
 
-### 6.1 Cloner le depot
+### 6.1 Cloner le dépôt
 
 ```powershell
 git clone https://github.com/rayakevin/p5-employee-attrition-api.git
 cd p5-employee-attrition-api
 ```
 
-### 6.2 Creer l'environnement Python
+### 6.2 Créer l'environnement Python
 
 ```powershell
 uv venv
@@ -159,7 +159,7 @@ uv pip install -r requirements.txt
 
 ### 6.3 Variables de configuration
 
-La configuration du projet est prefixee par `P5_`.
+La configuration du projet est préfixée par `P5_`.
 
 Variable principale :
 
@@ -174,11 +174,11 @@ P5_API_BASE_URL=http://127.0.0.1:8000
 P5_API_KEY=p5-demo-local-key
 ```
 
-En deploiement distant, si `P5_DATABASE_URL` n'est pas defini, l'API utilise un fallback SQLite local au conteneur. Le projet configure ce fallback sur un chemin ecrivable pour Hugging Face Spaces.
+En déploiement distant, si `P5_DATABASE_URL` n'est pas définie, l'API ne peut pas s'appuyer sur le PostgreSQL local du projet. Elle bascule alors sur une base SQLite embarquée dans le conteneur, stockée sur un chemin explicitement écrivable par le runtime Hugging Face Spaces. Ce fallback permet de faire fonctionner l'API et de conserver une traçabilité minimale des appels, mais il ne remplace pas une base PostgreSQL durable.
 
 ## 7. Lancement local avec PostgreSQL
 
-### 7.1 Demarrer PostgreSQL
+### 7.1 Démarrer PostgreSQL
 
 ```powershell
 docker compose up -d postgres
@@ -186,7 +186,7 @@ docker compose up -d postgres
 
 Le projet utilise `5433` pour eviter les collisions avec une installation PostgreSQL locale deja presente sur `5432`.
 
-### 7.2 Creer le schema et charger les donnees source
+### 7.2 Créer le schéma et charger les données source
 
 ```powershell
 $env:P5_DATABASE_URL="postgresql+psycopg://postgres:postgres@127.0.0.1:5433/p5_attrition"
@@ -201,14 +201,14 @@ Explication :
 
 Un script de `seed` est un script qui peuple une base avec des donnees initiales utiles a l'application, aux demonstrations ou aux tests.
 
-### 7.3 Demarrer l'API
+### 7.3 Démarrer l'API
 
 ```powershell
 $env:P5_DATABASE_URL="postgresql+psycopg://postgres:postgres@127.0.0.1:5433/p5_attrition"
 uv run uvicorn app.main:app --reload
 ```
 
-### 7.4 Verifier le service
+### 7.4 Vérifier le service
 
 ```powershell
 Invoke-RestMethod -Method Get -Uri "http://127.0.0.1:8000/health"
@@ -232,9 +232,9 @@ Reponse attendue :
 
 Les routes metier `POST` sont protegees par une cle d'API transmise dans l'en-tete `X-API-Key`.
 
-### 8.2 Valeurs conseillees pour les champs categoriels
+### 8.2 Valeurs conseillées pour les champs catégoriels
 
-Les valeurs ci-dessous reprennent les libelles francises documentes par le projet et normalises par le preprocessing.
+Les valeurs ci-dessous reprennent les libellés francisés documentés par le projet et normalisés par le preprocessing.
 
 - `genre` : `Homme`, `Femme`
 - `statut_marital` : `Celibataire`, `Marie(e)`, `Divorce(e)`
@@ -259,9 +259,16 @@ Les valeurs ci-dessous reprennent les libelles francises documentes par le proje
 - `frequence_deplacement` : `Aucun`, `Frequent`, `Occasionnel`
 - `heure_supplementaires` : `Oui`, `Non`
 
-Le projet conserve quelques alias historiques pour compatibilite, mais le contrat documentaire a privilegier est francais.
+Pour savoir quelles valeurs renseigner :
 
-### 8.3 Exemple de payload de prediction
+- la référence métier la plus simple est le formulaire Streamlit, qui ne propose que des valeurs compatibles ;
+- les exemples Swagger/OpenAPI exposent également des payloads valides ;
+- les valeurs proviennent des modalités réellement observées dans les données sources brutes (`data/raw/`) puis normalisées par [`app/ml/preprocess.py`](app/ml/preprocess.py) ;
+- les schémas d'entrée documentés dans [`app/schemas/prediction.py`](app/schemas/prediction.py) servent de contrat de référence.
+
+Le projet conserve quelques alias pour compatibilité, mais le contrat documentaire à privilégier est repris ci-avant.
+
+### 8.3 Exemple de payload de prédiction
 
 ```powershell
 $payload = @{
@@ -315,7 +322,7 @@ Exemple de reponse :
 }
 ```
 
-### 8.4 Exemple de requete d'explication locale
+### 8.4 Exemple de requête d'explication locale
 
 ```powershell
 Invoke-RestMethod `
@@ -333,7 +340,7 @@ La reponse contient :
 - les facteurs principaux qui augmentent le risque ;
 - les facteurs principaux qui diminuent le risque.
 
-### 8.5 Exemple de requete batch
+### 8.5 Exemple de requête batch
 
 ```powershell
 $batch = @{
@@ -367,6 +374,36 @@ $batch = @{
             frequence_deplacement = "Occasionnel"
             annees_depuis_la_derniere_promotion = 2
             annes_sous_responsable_actuel = 3
+        },
+        @{
+            age = 46
+            genre = "Femme"
+            revenu_mensuel = 6900
+            statut_marital = "Marie(e)"
+            departement = "Consulting"
+            poste = "Senior Manager"
+            nombre_experiences_precedentes = 3
+            annee_experience_totale = 22
+            annees_dans_l_entreprise = 14
+            annees_dans_le_poste_actuel = 5
+            satisfaction_employee_environnement = 4
+            note_evaluation_precedente = 4.0
+            niveau_hierarchique_poste = 4
+            satisfaction_employee_nature_travail = 4
+            satisfaction_employee_equipe = 4
+            satisfaction_employee_equilibre_pro_perso = 4
+            note_evaluation_actuelle = 4.0
+            heure_supplementaires = "Non"
+            augementation_salaire_precedente = 0.15
+            nombre_participation_pee = 1
+            nb_formations_suivies = 3
+            nombre_employee_sous_responsabilite = 0
+            distance_domicile_travail = 7
+            niveau_education = 3
+            domaine_etude = "Infra & Cloud"
+            frequence_deplacement = "Aucun"
+            annees_depuis_la_derniere_promotion = 1
+            annes_sous_responsable_actuel = 5
         }
     )
 } | ConvertTo-Json -Depth 5
@@ -379,30 +416,33 @@ Invoke-RestMethod `
   -Body $batch
 ```
 
-## 8.6 Authentification et securite
+## 8.6 Authentification et sécurité
 
-Le projet implemente une authentification simple par cle d'API.
+Le projet implémente une authentification simple par clé d'API.
 
 Principe :
 
 - les routes publiques `GET /` et `GET /health` restent ouvertes ;
-- les routes metier `/predict`, `/explain` et `/predict/batch` exigent un en-tete `X-API-Key` ;
+- les routes métier `/predict`, `/explain` et `/predict/batch` exigent un en-tête `X-API-Key` ;
 - la valeur attendue est lue depuis `P5_API_KEY`.
 
 Pourquoi ce choix :
 
-- il repond au besoin pedagogique de controle d'acces ;
-- il reste facile a tester, a documenter et a deployer ;
+- il répond au besoin pédagogique de contrôle d'accès ;
+- il reste facile à tester, à documenter et à déployer ;
 - il est compatible avec FastAPI et Swagger/OpenAPI.
 
 Bonnes pratiques retenues :
 
-- ne pas committer de secrets dans le code ;
-- passer les valeurs sensibles par variables d'environnement ou secrets GitHub ;
-- utiliser des valeurs distinctes entre local et deploiement distant ;
+- stocker `P5_API_KEY` en variable d'environnement ;
+- utiliser les secrets GitHub pour les déploiements ;
+- ne jamais committer une vraie clé de production ;
+- séparer autant que possible les secrets locaux, CI/CD et production ;
 - limiter l'exposition de la base et des variables de configuration.
 
-## 9. Base de donnees et tracabilite
+Le portfolio Streamlit consomme lui aussi l'API protégée. En pratique, il lit la variable `P5_API_KEY` et transmet automatiquement cette valeur dans l'en-tête `X-API-Key` lors des appels HTTP vers l'API. L'utilisateur du portfolio n'a donc pas à saisir la clé manuellement dans l'interface, mais elle doit être configurée dans l'environnement d'exécution.
+
+## 9. Base de données et traçabilité
 
 Tables principales :
 
@@ -453,19 +493,32 @@ uv run pytest -q
 - contrat OpenAPI ;
 - parcours fonctionnels principaux.
 
-### 11.3 Generer un rapport de couverture
+### 11.3 Générer un rapport de couverture
 
-En local :
+Commande utilisée en local :
 
 ```powershell
 uv run pytest --cov=app --cov-report=term-missing --cov-report=html --cov-report=xml
 ```
 
-Resultats :
+Résultats obtenus sur l'état actuel du dépôt :
 
-- rapport terminal pour lecture rapide ;
-- `htmlcov/index.html` pour une lecture detaillee ;
-- `coverage.xml` pour la CI.
+- `22 passed` ;
+- couverture totale `89%` sur le package `app` ;
+- génération d'un rapport terminal détaillé ;
+- génération de `htmlcov/index.html` pour une lecture visuelle ;
+- génération de [`coverage.xml`](coverage.xml) pour la CI.
+
+Interprétation :
+
+- la couverture est solide pour un projet P5 et sécurise bien les flux critiques ;
+- les zones les mieux couvertes sont les endpoints, le preprocessing, le scoring, l'explication locale et les parcours batch ;
+- le reliquat non couvert correspond surtout à du code de démarrage, de configuration ou à des chemins secondaires moins risqués.
+
+Rapports disponibles :
+
+- [`coverage.xml`](coverage.xml) : rapport machine exploitable par la CI et les outils d'analyse ;
+- [`docs/tests/coverage_report.md`](docs/tests/coverage_report.md) : rapport écrit et interprété.
 
 ## 12. Docker
 
@@ -517,6 +570,28 @@ Configuration GitHub requise :
 - variable `HF_USERNAME`
 - variable `HF_SPACE_NAME`
 
+Comment configurer ces éléments :
+
+1. créer le Space API sur Hugging Face en mode `Docker` ;
+2. récupérer votre nom d'utilisateur Hugging Face, par exemple `rayakevin` ;
+3. relever le nom exact du Space, par exemple `p5-employee-attrition-api` ;
+4. dans GitHub, ouvrir `Settings > Secrets and variables > Actions` ;
+5. créer le secret `HF_TOKEN` dans `Secrets` ;
+6. créer `HF_USERNAME` et `HF_SPACE_NAME` dans `Variables`.
+
+Comment obtenir `HF_TOKEN` :
+
+1. ouvrir `https://huggingface.co/settings/tokens` ;
+2. créer un `User Access Token` ;
+3. choisir au minimum un droit d'écriture sur le Space cible ;
+4. copier la valeur `hf_...` générée puis la coller dans le secret GitHub `HF_TOKEN`.
+
+Valeurs à renseigner :
+
+- `HF_TOKEN` : votre token Hugging Face ;
+- `HF_USERNAME` : votre nom de compte Hugging Face ;
+- `HF_SPACE_NAME` : le nom exact du Space API.
+
 ### 13.3 CD portfolio Streamlit
 
 Workflow :
@@ -529,12 +604,26 @@ Configuration GitHub requise :
 - variable `HF_USERNAME`
 - variable `HF_PORTFOLIO_SPACE_NAME`
 
+Logique de configuration :
+
+- le secret `HF_TOKEN` peut être réutilisé si le même compte pousse aussi le portfolio ;
+- `HF_USERNAME` reste le compte propriétaire des Spaces ;
+- `HF_PORTFOLIO_SPACE_NAME` doit contenir le nom exact du Space portfolio, par exemple `p5-employee-attrition-portfolio`.
+
+Procédure :
+
+1. créer un second Space Hugging Face dédié au portfolio, lui aussi en mode `Docker` ;
+2. dans GitHub, ouvrir `Settings > Secrets and variables > Actions` ;
+3. vérifier que `HF_TOKEN` existe déjà ;
+4. ajouter ou mettre à jour `HF_USERNAME` ;
+5. ajouter `HF_PORTFOLIO_SPACE_NAME` dans `Variables`.
+
 Documentation de deploiement :
 
 - [`deploy/huggingface/README.md`](deploy/huggingface/README.md)
 - [`deploy/huggingface/portfolio.README.md`](deploy/huggingface/portfolio.README.md)
 
-## 14. Deploiement distant
+## 14. Déploiement distant
 
 Le projet utilise Hugging Face Spaces en mode Docker.
 
@@ -551,7 +640,7 @@ Exemples de verification distante :
 Invoke-RestMethod -Method Get -Uri "https://rayakevin-p5-employee-attrition-api.hf.space/health"
 ```
 
-## 15. Protocole de mise a jour
+## 15. Protocole de mise à jour
 
 Le protocole detaille est documente dans [`docs/maintenance_protocol.md`](docs/maintenance_protocol.md).
 
@@ -586,31 +675,49 @@ Resume pratique :
 
 ### 16.3 Tags
 
-Le projet utilise egalement des tags Git pour figer des etapes importantes de livraison.
+Le projet utilise des tags Git pour figer des états stables, présentables et facilement retrouvables dans l'historique.
 
-Convention conseillee :
+Logique retenue :
 
-- `v0.1.0`
-- `v0.2.0`
-- `v1.0.0`
+- un tag est posé uniquement sur un état validé par les tests et la documentation ;
+- le premier chiffre représente une étape majeure du produit ;
+- le deuxième chiffre représente une évolution fonctionnelle importante sans rupture complète ;
+- le troisième chiffre représente un correctif ou un ajustement stabilisé.
 
-Un tag doit correspondre a un etat stable, testee et identifiable du projet.
+Exemples :
 
-## 17. Dependances
+- `v0.1.0` : première version stable du projet industrialisé ;
+- `v0.2.0` : ajout important de fonctionnalités sans changement de socle ;
+- `v0.2.1` : correctif stabilisé sur une version déjà livrée ;
+- `v1.0.0` : version considérée comme aboutie pour une livraison de référence.
 
-- `requirements.txt` : environnement complet de dev, tests et usage local
-- `requirements.runtime.txt` : runtime API allege pour Docker et le Space API
-- `requirements.streamlit.txt` : runtime portfolio Streamlit
+Le dépôt contient actuellement le tag `v0.1.0`, utilisé pour marquer un état cohérent du projet avec API sécurisée, tests, documentation et pipeline de déploiement.
+
+## 17. Dépendances
+
+Les trois fichiers de dépendances sont à jour par rapport à l'état actuel du dépôt.
+
+- `requirements.txt` : environnement complet de développement, de tests et d'usage local. Il inclut notamment FastAPI, SQLAlchemy, MLflow, Pytest, Streamlit et HTTPX.
+- `requirements.runtime.txt` : runtime API allégé pour Docker et le Space API. Il conserve uniquement les dépendances nécessaires à l'API, au modèle et à la base.
+- `requirements.streamlit.txt` : runtime dédié au portfolio Streamlit. Il contient uniquement Streamlit, Pandas et HTTPX pour consommer l'API.
+
+Cette séparation permet :
+
+- d'éviter d'embarquer des dépendances inutiles dans les images de déploiement ;
+- de réduire le poids des builds Docker ;
+- de garder un environnement de développement plus riche que les runtimes de production.
 
 ## 18. Documents utiles
 
 - [`docs/api/README.md`](docs/api/README.md) : documentation detaillee de l'API
+- [`docs/db/README.md`](docs/db/README.md) : documentation detaillee de la base de donnees
 - [`docs/model/README.md`](docs/model/README.md) : documentation du modele final et du preprocessing
+- [`docs/tests/coverage_report.md`](docs/tests/coverage_report.md) : rapport écrit de couverture de tests
 - [`docs/p5_demo_exploitation.md`](docs/p5_demo_exploitation.md) : fiche de demonstration
 - [`docs/architecture/overview.md`](docs/architecture/overview.md) : architecture
 - [`docs/maintenance_protocol.md`](docs/maintenance_protocol.md) : maintenance
 
-## 19. Etat du projet
+## 19. État du projet
 
 A date, le projet dispose :
 
@@ -626,8 +733,8 @@ A date, le projet dispose :
 ## 20. Limites connues
 
 - les rebuilds Hugging Face Spaces peuvent etre tres longs ;
-- PostgreSQL local n'est pas automatiquement disponible dans les Spaces ;
-- la cible distante sert surtout de vitrine et de preuve de deploiement.
+- PostgreSQL local n'est pas disponible dans les Spaces ;
+- la cible distante sert surtout de vitrine et de preuve de déploiement.
 
 ## 21. Contexte
 

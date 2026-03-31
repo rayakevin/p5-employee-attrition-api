@@ -110,5 +110,5 @@ La documentation doit etre mise a jour si un changement modifie :
 Frequence minimale conseillee :
 
 - verification rapide avant chaque merge important ;
-- verification complete avant soutenance ou demonstration ;
+- verification complete avant demonstration ;
 - verification complete apres tout changement de runtime ou de modele.

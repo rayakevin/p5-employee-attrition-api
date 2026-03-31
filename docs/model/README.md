@@ -37,7 +37,33 @@ Conséquences importantes :
 - l'interprétation locale peut être faite proprement par décomposition additive ;
 - l'ordre et le nom exact des features d'entrée doivent correspondre strictement à la signature du pipeline.
 
-## 4. Feature engineering attendu
+## 4. À quoi correspond la sortie brute ?
+
+La sortie brute renvoyée par l'API dans le champ `score` correspond au score de marge calculé par `decision_function`.
+
+Concrètement :
+
+- ce score mesure de quel côté de la frontière de décision se situe l'individu ;
+- plus le score est élevé, plus le modèle pousse vers la classe `1` ;
+- plus le score est faible, plus le modèle pousse vers la classe `0`.
+
+Il ne s'agit pas d'une probabilité :
+
+- un score de `0.5` ne veut pas dire `50 %` de risque ;
+- un score négatif ne veut pas dire `risque négatif`, mais simplement une position nette du côté de la classe `0`.
+
+La classe finale est obtenue en comparant ce score au seuil enregistré dans la metadata du modèle :
+
+- `score < threshold`  -> `prediction = 0`
+- `score >= threshold` -> `prediction = 1`
+
+Dans certains cas, on peut convertir un score linéaire en pseudo-probabilité à l'aide d'une fonction sigmoïde. Mais ce n'est pas ce que fait ce projet :
+
+- le modèle déployé n'est pas calibré en probabilité ;
+- la sortie officielle de l'API reste donc un score brut cohérent avec `decision_function` ;
+- cela évite de présenter comme probabiliste une information qui ne l'est pas réellement.
+
+## 5. Feature engineering attendu
 
 Le modèle n'attend pas directement le payload métier brut. Il attend un tableau de features finales reconstruit par [`app/ml/preprocess.py`](../../app/ml/preprocess.py).
 
@@ -51,7 +77,7 @@ Cette étape comprend :
 - création des colonnes one-hot ;
 - réalignement exact sur la liste de features de la metadata.
 
-## 5. Références de preprocessing
+## 6. Références de preprocessing
 
 Le fichier [`artifacts/model/preprocessing_reference.json`](../../artifacts/model/preprocessing_reference.json) contient les références nécessaires à l'inférence :
 
@@ -66,7 +92,7 @@ Cette décision d'architecture est importante :
 - l'API reste portable en local, en Docker et sur Hugging Face Spaces ;
 - le comportement d'inférence reste cohérent avec le notebook d'entraînement.
 
-## 6. Variables principales
+## 7. Variables principales
 
 La metadata du modèle expose la liste exacte des features finales attendues.
 
@@ -111,7 +137,7 @@ On y retrouve plusieurs familles :
 - `poste_regroupe_*`
 - `domaine_etude_regroupe_*`
 
-## 7. Chargement du modèle
+## 8. Chargement du modèle
 
 Le chargement suit la logique suivante :
 
@@ -122,11 +148,11 @@ Le chargement suit la logique suivante :
 
 Le projet privilégie le flavor scikit-learn, car il permet de conserver l'accès à :
 
-- `decision_function`
+- `decision_function` ;
 - les coefficients linéaires ;
 - l'interprétation locale exacte.
 
-## 8. Calcul du score et de la classe
+## 9. Calcul du score et de la classe
 
 Le scoring est effectué dans [`app/ml/predictor.py`](../../app/ml/predictor.py).
 
@@ -142,7 +168,7 @@ Important :
 - un score inférieur au seuil produit `0` ;
 - un score supérieur ou égal au seuil produit `1`.
 
-## 9. Explication locale
+## 10. Explication locale
 
 L'explication locale est calculée dans [`app/ml/explainer.py`](../../app/ml/explainer.py).
 
@@ -163,14 +189,33 @@ Le portfolio Streamlit s'appuie sur cette décomposition pour afficher :
 - les facteurs qui augmentent le risque de départ ;
 - les facteurs qui diminuent le risque de départ.
 
-## 10. Limites et vigilance
+## 11. Limites et vigilance
 
 - Le modèle a été entraîné sur un schéma de features précis : toute dérive de preprocessing modifie les scores.
 - Les accents et problèmes d'encodage dans certains libellés MLflow ont nécessité une logique de réparation dans le preprocessing.
 - Une erreur de chargement du flavor scikit-learn peut dégrader l'accès à certaines méthodes du modèle.
 - Les jeux de démonstration doivent toujours rester cohérents avec les valeurs réellement admises par les CSV bruts et par le modèle final.
 
-## 11. Liens utiles
+### Explication de la limite sur le flavor scikit-learn
+
+Le modèle MLflow peut être chargé de deux manières :
+
+- via le flavor `scikit-learn`, qui restitue l'objet modèle natif ;
+- via le flavor `pyfunc`, plus générique.
+
+Si le chargement `scikit-learn` échoue et que l'on retombe sur `pyfunc`, l'API peut encore prédire, mais elle perd potentiellement l'accès à des méthodes spécialisées comme :
+
+- `decision_function` ;
+- les coefficients internes du modèle ;
+- certains attributs nécessaires à une explication locale fidèle.
+
+Dans ce cas :
+
+- le score risque d'être moins fidèle au contrat du modèle ;
+- l'interprétation locale devient plus fragile, voire impossible ;
+- il faut diagnostiquer la cause de l'échec de chargement plutôt que d'accepter silencieusement une dégradation du runtime.
+
+## 12. Liens utiles
 
 - Vue architecture : [`../architecture/overview.md`](../architecture/overview.md)
 - Documentation API : [`../api/README.md`](../api/README.md)

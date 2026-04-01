@@ -127,7 +127,8 @@ jobs:
           test -n "$HF_USERNAME"
           test -n "$HF_SPACE_NAME"
 
-          SPACE_HOST=$(printf '%s-%s' "$HF_USERNAME" "$HF_SPACE_NAME" | tr '[:upper:]' '[:lower:]')
+          PUBLIC_SPACE_NAME=$(printf '%s' "$HF_SPACE_NAME" | tr '[:upper:]_' '[:lower:]-')
+          SPACE_HOST=$(printf '%s-%s' "$HF_USERNAME" "$PUBLIC_SPACE_NAME")
           BASE_URL="https://${SPACE_HOST}.hf.space"
 
           echo "Waiting for portfolio deployment on ${BASE_URL}"

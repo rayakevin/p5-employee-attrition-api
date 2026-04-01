@@ -78,7 +78,7 @@ jobs:
     permissions:
       contents: read
     environment:
-      name: ${{ github.ref_name == 'main' && 'production' || 'development' }}
+      name: ${{ github.ref_name == 'main' && 'prod' || 'dev' }}
     concurrency:
       group: deploy-api-${{ github.ref_name }}
       cancel-in-progress: true
@@ -138,7 +138,7 @@ jobs:
     needs: deploy-api
     runs-on: ubuntu-latest
     environment:
-      name: ${{ github.ref_name == 'main' && 'production' || 'development' }}
+      name: ${{ github.ref_name == 'main' && 'prod' || 'dev' }}
 
     steps:
       - name: Probe deployed API endpoints
@@ -179,7 +179,7 @@ jobs:
     permissions:
       contents: read
     environment:
-      name: ${{ github.ref_name == 'main' && 'production' || 'development' }}
+      name: ${{ github.ref_name == 'main' && 'prod' || 'dev' }}
     concurrency:
       group: deploy-portfolio-${{ github.ref_name }}
       cancel-in-progress: true
@@ -235,7 +235,7 @@ jobs:
     needs: deploy-portfolio
     runs-on: ubuntu-latest
     environment:
-      name: ${{ github.ref_name == 'main' && 'production' || 'development' }}
+      name: ${{ github.ref_name == 'main' && 'prod' || 'dev' }}
 
     steps:
       - name: Probe deployed portfolio root page

@@ -8,6 +8,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1 \
     PORT=8000 \
+    P5_ENVIRONMENT=production \
     HOME=/home/user \
     PATH=/home/user/.local/bin:$PATH
 

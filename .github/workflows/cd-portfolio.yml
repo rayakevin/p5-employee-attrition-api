@@ -1,23 +1,40 @@
 name: CD Portfolio
 
 on:
-  push:
-    branches:
-      - main
   workflow_dispatch:
+    inputs:
+      target_environment:
+        description: GitHub environment to deploy
+        required: true
+        default: dev
+        type: choice
+        options:
+          - dev
+          - prod
+      git_ref:
+        description: Branch, tag or commit to deploy
+        required: true
+        default: main
+        type: string
+
+concurrency:
+  group: cd-portfolio-${{ inputs.target_environment || github.ref_name || 'manual' }}
+  cancel-in-progress: true
 
 jobs:
   deploy-portfolio-to-hf-space:
-    if: ${{ vars.HF_PORTFOLIO_SPACE_NAME != '' }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
+    environment:
+      name: ${{ inputs.target_environment }}
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v5
         with:
           fetch-depth: 0
+          ref: ${{ inputs.git_ref }}
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -40,16 +57,35 @@ jobs:
           rsync -av ui/ hf-space-sync/ui/
           rsync -av .streamlit/ hf-space-sync/.streamlit/
 
+      - name: Validate Hugging Face portfolio token
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          test -n "$HF_TOKEN"
+
+      - name: Validate Hugging Face portfolio target
+        env:
+          HF_USERNAME: ${{ vars.HF_USERNAME }}
+          HF_SPACE_NAME: ${{ vars.HF_PORTFOLIO_SPACE_NAME }}
+        run: |
+          test -n "$HF_USERNAME"
+          test -n "$HF_SPACE_NAME"
+          echo "Target Space: $HF_USERNAME/$HF_SPACE_NAME"
+
+      - name: Validate Hugging Face portfolio git access
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          HF_USERNAME: ${{ vars.HF_USERNAME }}
+          HF_SPACE_NAME: ${{ vars.HF_PORTFOLIO_SPACE_NAME }}
+        run: |
+          git ls-remote "https://$HF_USERNAME:$HF_TOKEN@huggingface.co/spaces/$HF_USERNAME/$HF_SPACE_NAME" HEAD
+
       - name: Push to Hugging Face Portfolio Space
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
           HF_USERNAME: ${{ vars.HF_USERNAME }}
           HF_SPACE_NAME: ${{ vars.HF_PORTFOLIO_SPACE_NAME }}
         run: |
-          test -n "$HF_TOKEN"
-          test -n "$HF_USERNAME"
-          test -n "$HF_SPACE_NAME"
-          echo "Target Space: $HF_USERNAME/$HF_SPACE_NAME"
           cd hf-space-sync
           git init
           git checkout -b main
@@ -58,3 +94,36 @@ jobs:
           git add .
           git commit -m "Deploy portfolio from GitHub Actions"
           git push --force https://$HF_USERNAME:$HF_TOKEN@huggingface.co/spaces/$HF_USERNAME/$HF_SPACE_NAME main
+
+  smoke-test-portfolio:
+    needs: deploy-portfolio-to-hf-space
+    if: ${{ needs.deploy-portfolio-to-hf-space.result == 'success' }}
+    runs-on: ubuntu-latest
+    environment:
+      name: ${{ inputs.target_environment }}
+
+    steps:
+      - name: Probe deployed portfolio root page
+        env:
+          HF_USERNAME: ${{ vars.HF_USERNAME }}
+          HF_SPACE_NAME: ${{ vars.HF_PORTFOLIO_SPACE_NAME }}
+        run: |
+          test -n "$HF_USERNAME"
+          test -n "$HF_SPACE_NAME"
+
+          SPACE_HOST=$(printf '%s-%s' "$HF_USERNAME" "$HF_SPACE_NAME" | tr '[:upper:]' '[:lower:]')
+          BASE_URL="https://${SPACE_HOST}.hf.space"
+
+          echo "Waiting for portfolio deployment on ${BASE_URL}"
+
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent --show-error "${BASE_URL}" > /dev/null; then
+              echo "Portfolio root is reachable."
+              exit 0
+            fi
+            echo "Attempt ${attempt}/30 failed for ${BASE_URL}; retrying in 10s..."
+            sleep 10
+          done
+
+          echo "Smoke test failed for ${BASE_URL}"
+          exit 1

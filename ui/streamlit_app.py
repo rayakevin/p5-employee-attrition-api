@@ -17,12 +17,23 @@ import httpx
 import pandas as pd
 import streamlit as st
 
+try:
+    from dotenv import load_dotenv
+except ImportError:
+    load_dotenv = None
 
+if load_dotenv is not None:
+    load_dotenv()
+
+APP_ENVIRONMENT = os.getenv("P5_ENVIRONMENT", "development").lower()
 DEFAULT_API_BASE_URL = os.getenv(
     "P5_API_BASE_URL",
-    "https://rayakevin-p5-employee-attrition-api.hf.space",
+    "http://127.0.0.1:8000" if APP_ENVIRONMENT == "development"
+    else "https://rayakevin-p5-employee-attrition-api.hf.space",
 )
-DEFAULT_API_KEY = os.getenv("P5_API_KEY", "p5-demo-local-key")
+DEFAULT_API_KEY = os.getenv("P5_API_KEY")
+if not DEFAULT_API_KEY and APP_ENVIRONMENT == "development":
+    DEFAULT_API_KEY = "p5-dev-local-key"
 
 GENRES = ["Homme", "Femme"]
 STATUTS_MARITAUX = ["Célibataire", "Marié(e)", "Divorcé(e)"]
@@ -434,12 +445,21 @@ def check_api_health(api_base_url: str) -> tuple[bool, str]:
         return False, str(exc)
 
 
+def build_auth_headers() -> dict[str, str]:
+    """Construit les en-tetes HTTP pour appeler l'API protegee."""
+    if not DEFAULT_API_KEY:
+        raise RuntimeError(
+            "P5_API_KEY est obligatoire pour appeler l'API protegee."
+        )
+    return {"X-API-Key": DEFAULT_API_KEY}
+
+
 def call_prediction_api(api_base_url: str, payload: dict[str, Any]) -> dict[str, Any]:
     """Appelle l'endpoint de prediction."""
     response = httpx.post(
         f"{api_base_url}/api/v1/predict",
         json=payload,
-        headers={"X-API-Key": DEFAULT_API_KEY},
+        headers=build_auth_headers(),
         timeout=30.0,
     )
     response.raise_for_status()
@@ -451,7 +471,7 @@ def call_explain_api(api_base_url: str, payload: dict[str, Any]) -> dict[str, An
     response = httpx.post(
         f"{api_base_url}/api/v1/explain",
         json=payload,
-        headers={"X-API-Key": DEFAULT_API_KEY},
+        headers=build_auth_headers(),
         timeout=30.0,
     )
     response.raise_for_status()
@@ -473,7 +493,7 @@ def call_batch_prediction_api(
             response = client.post(
                 f"{api_base_url}/api/v1/predict/batch",
                 json={"rows": chunk},
-                headers={"X-API-Key": DEFAULT_API_KEY},
+                headers=build_auth_headers(),
             )
             response.raise_for_status()
             results.extend(response.json()["results"])

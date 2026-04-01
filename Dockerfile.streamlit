@@ -6,6 +6,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1 \
     PORT=8501 \
+    P5_ENVIRONMENT=production \
     P5_API_BASE_URL=https://rayakevin-p5-employee-attrition-api.hf.space \
     HOME=/home/user \
     PATH=/home/user/.local/bin:$PATH

@@ -3,10 +3,10 @@ services:
     image: postgres:17
     container_name: p5_attrition_postgres
     environment:
-      POSTGRES_DB: p5_attrition
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_HOST_AUTH_METHOD: trust
+      POSTGRES_DB: ${POSTGRES_DB:-p5_attrition}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_INITDB_ARGS: --auth-host=scram-sha-256 --auth-local=scram-sha-256
     ports:
       - "5433:5432"
     volumes:
@@ -23,7 +23,10 @@ services:
       dockerfile: Dockerfile
     container_name: p5_attrition_api
     environment:
-      P5_DATABASE_URL: postgresql+psycopg://postgres:postgres@postgres:5432/p5_attrition
+      P5_ENVIRONMENT: ${P5_ENVIRONMENT:-development}
+      P5_DEBUG: ${P5_DEBUG:-true}
+      P5_API_KEY: ${P5_API_KEY:-p5-dev-local-key}
+      P5_DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-p5_attrition}
     ports:
       - "8000:8000"
     depends_on:
@@ -41,7 +44,9 @@ services:
       dockerfile: Dockerfile.streamlit
     container_name: p5_attrition_portfolio
     environment:
-      P5_API_BASE_URL: http://api:8000
+      P5_ENVIRONMENT: ${P5_ENVIRONMENT:-development}
+      P5_API_BASE_URL: ${P5_API_BASE_URL:-http://api:8000}
+      P5_API_KEY: ${P5_API_KEY:-p5-dev-local-key}
       PORT: 8501
     ports:
       - "8501:8501"

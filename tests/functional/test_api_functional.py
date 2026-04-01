@@ -58,6 +58,16 @@ def test_public_routes_are_available_without_authentication() -> None:
     assert client.get("/openapi.json").status_code == 200
 
 
+def test_unknown_route_returns_404() -> None:
+    """Verifie qu'une route inexistante renvoie bien 404."""
+    assert client.get("/api/v1/unknown-route").status_code == 404
+
+
+def test_wrong_http_method_returns_405() -> None:
+    """Verifie qu'une methode HTTP non supportee renvoie 405."""
+    assert client.get("/api/v1/predict").status_code == 405
+
+
 def test_prediction_routes_require_api_key() -> None:
     """Verifie que les routes metier sont bien protegees."""
     payload = build_valid_payload()
@@ -80,6 +90,20 @@ def test_openapi_exposes_security_scheme_and_examples() -> None:
 
     predict_operation = schema["paths"]["/api/v1/predict"]["post"]
     assert {"APIKeyHeader": []} in predict_operation["security"]
+
+
+def test_prediction_route_returns_422_for_invalid_payload() -> None:
+    """Verifie qu'un payload invalide est rejete par la validation FastAPI."""
+    payload = build_valid_payload()
+    payload["age"] = 10
+
+    response = client.post(
+        "/api/v1/predict",
+        json=payload,
+        headers=AUTH_HEADERS,
+    )
+
+    assert response.status_code == 422
 
 
 def test_prediction_route_works_with_valid_api_key() -> None:

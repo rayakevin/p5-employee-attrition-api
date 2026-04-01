@@ -10,8 +10,8 @@ uv run pytest --cov=app --cov-report=term-missing --cov-report=html --cov-report
 
 ## 2. Résultats globaux
 
-- Tests exécutés : `22`
-- Tests réussis : `22 passed`
+- Tests exécutés : `27`
+- Tests réussis : `27 passed`
 - Couverture totale sur le package `app` : `89%`
 
 Artifacts produits :
@@ -23,6 +23,7 @@ Artifacts produits :
 
 Les éléments les mieux couverts sont les composants critiques du projet :
 
+- `app/core/config.py` : `97%`
 - `app/ml/predictor.py` : `97%`
 - `app/ml/explainer.py` : `94%`
 - `app/services/prediction_service.py` : `94%`
@@ -36,7 +37,7 @@ Le preprocessing, qui est une zone sensible du projet, atteint :
 Les zones un peu moins couvertes sont :
 
 - `app/api/v1/endpoints/predict.py` : `75%`
-- `app/db/session.py` : `75%`
+- `app/db/session.py` : `64%`
 - `app/ml/loader.py` : `82%`
 
 ## 4. Interprétation
@@ -50,13 +51,14 @@ Cette couverture est solide pour un projet de niveau P5, car elle sécurise bien
 - authentification par clé API ;
 - persistance et audit log ;
 - seed des données source ;
-- contrat OpenAPI exposé par FastAPI.
+- contrat OpenAPI exposé par FastAPI ;
+- comportement par environnement.
 
 Le reliquat non couvert correspond surtout à :
 
 - des chemins secondaires ;
 - du code de démarrage ;
-- certaines branches d'infrastructure moins critiques que le cœur métier.
+- certaines branches d'infrastructure moins critiques que le coeur métier.
 
 ## 5. Conclusion
 

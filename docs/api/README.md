@@ -34,22 +34,9 @@ Usage :
 - tester un déploiement local, Docker ou Hugging Face Spaces ;
 - servir de point d'entrée à un contrôle de disponibilité.
 
-Réponse attendue :
-
-```json
-{
-  "status": "ok"
-}
-```
-
 ### `POST /api/v1/predict`
 
 Route de prédiction unitaire.
-
-Entrée :
-
-- un payload métier validé par `PredictionInput` ;
-- des valeurs alignées sur les CSV bruts du projet.
 
 Sortie :
 
@@ -65,11 +52,6 @@ Cette route écrit aussi en base :
 - le résultat métier dans `prediction_results` ;
 - un log technique dans `api_audit_logs`.
 
-Pré-requis d'accès :
-
-- en-tête `X-API-Key` ;
-- valeur lue depuis `P5_API_KEY`.
-
 ### `POST /api/v1/explain`
 
 Route d'explication locale individuelle.
@@ -82,7 +64,7 @@ Elle reprend exactement le même payload que `/predict`, mais renvoie une décom
 - `top_positive` ;
 - `top_negative`.
 
-Cette route est utilisée en particulier par le portfolio Streamlit. Elle ne persiste pas d'enregistrement supplémentaire en base, car son objectif est l'analyse, pas la traçabilité métier.
+Cette route ne persiste pas d'enregistrement supplémentaire en base, car son objectif est l'analyse, pas la traçabilité métier.
 
 ### `POST /api/v1/predict/batch`
 
@@ -102,7 +84,7 @@ Cette route ne persiste pas les appels en base. Elle sert à l'exploration, au p
 
 Le contrat d'entrée est défini dans [`app/schemas/prediction.py`](../../app/schemas/prediction.py).
 
-Quelques principes importants :
+Principes importants :
 
 - les entrées sont exprimées en français côté métier ;
 - les valeurs catégorielles attendues correspondent aux CSV bruts du projet ;
@@ -157,30 +139,26 @@ Cette base sert à :
 - le stockage des données sources dans `employees_source` ;
 - les tests d'intégration autour du flux complet.
 
-### Hugging Face Spaces
+### Production / Hugging Face Spaces
 
-Sur le Space API, si `P5_DATABASE_URL` n'est pas fournie, l'application utilise un fallback SQLite local au conteneur.
+La cible recommandée est un PostgreSQL distant fourni via `P5_DATABASE_URL`.
 
 Point important :
 
-- cette base SQLite sert uniquement à garder l'API fonctionnelle ;
-- elle n'a pas vocation à remplacer une vraie base de persistance durable ;
-- son contenu peut être perdu à chaque cycle de vie du conteneur ;
-- le feature engineering ne dépend plus de cette base.
+- en production, `P5_DATABASE_URL` et `P5_API_KEY` doivent être fournis explicitement ;
+- SQLite ne doit plus être considéré comme la cible normale d'exploitation ;
+- un fallback SQLite ne reste acceptable que pour un runtime de démonstration non configuré.
 
 ## 6. Gestion des erreurs
 
 Le comportement d'erreur suit la logique suivante :
 
+- erreur de validation FastAPI : `422` ;
 - erreur métier ou de validation complémentaire : `400` ;
+- authentification absente ou invalide : `401` ;
+- route inexistante : `404` ;
+- méthode HTTP non supportée : `405` ;
 - erreur interne : `500`.
-
-Exemples :
-
-- catégorie non supportée ;
-- valeur binaire invalide ;
-- problème de chargement du modèle ;
-- erreur technique lors d'un appel base ou d'une prédiction.
 
 ## 7. Authentification et secrets
 
@@ -196,11 +174,10 @@ Choix retenu :
 Bonnes pratiques :
 
 - stocker `P5_API_KEY` en variable d'environnement ;
-- utiliser les secrets GitHub pour les déploiements ;
+- utiliser les secrets GitHub pour piloter le déploiement ;
+- définir aussi les secrets et variables du runtime directement dans les Spaces Hugging Face ;
 - ne jamais committer une vraie clé de production ;
 - séparer autant que possible les secrets locaux, CI/CD et production.
-
-Ces bonnes pratiques sont également rappelées dans le `README.md` racine du projet.
 
 ## 8. Exemples d'utilisation
 
@@ -256,14 +233,3 @@ Invoke-RestMethod `
   -ContentType "application/json" `
   -Body $payload
 ```
-
-## 9. Points de vigilance
-
-- Le portfolio Streamlit n'exécute pas le modèle lui-même : il passe par l'API.
-- Le batch n'écrit pas en base par conception.
-- Le score renvoyé est un score brut de modèle, pas une probabilité.
-- La cohérence de l'API repose sur l'alignement strict entre :
-  - schéma Pydantic ;
-  - preprocessing ;
-  - metadata MLflow ;
-  - modèle exporté.

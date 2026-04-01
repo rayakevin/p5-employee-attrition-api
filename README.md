@@ -651,7 +651,7 @@ Logique de configuration :
 
 - le secret `HF_TOKEN` peut être réutilisé si le même compte pousse aussi le portfolio ;
 - `HF_USERNAME` reste le compte propriétaire des Spaces ;
-- `HF_PORTFOLIO_SPACE_NAME` doit contenir le nom exact du Space portfolio, par exemple `p5-employee-attrition-portfolio`.
+- `HF_PORTFOLIO_SPACE_NAME` doit contenir le nom exact du Space portfolio, par exemple `p5-portfolio-dev` en DEV et `p5-portfolio` en PROD.
 
 Procédure :
 

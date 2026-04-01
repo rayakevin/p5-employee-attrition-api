@@ -95,11 +95,16 @@ Puis tester :
 Après merge sur `develop` ou `main` :
 
 - vérifier la CI ;
-- vérifier la CD ;
+- vérifier que la CD s'est bien déclenchée après la CI ;
 - vérifier le build du Space Hugging Face ;
 - vérifier `/health` ;
 - vérifier `/openapi.json` ;
 - vérifier `/api/v1/predict`.
+
+Rappel :
+
+- `ci.yml` ne fait que la validation technique ;
+- `cd.yml` et `cd-portfolio.yml` sont distincts et démarrent après succès de la CI.
 
 ## 4. Règle de mise à jour de la documentation
 

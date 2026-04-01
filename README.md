@@ -579,6 +579,8 @@ La CI :
 - charge les donnees source ;
 - execute les tests.
 
+Elle ne deploie rien directement : les workflows CD sont distincts et ne se declenchent qu'apres une CI terminee avec succes sur `develop` ou `main`.
+
 Variables CI imposees :
 
 - `P5_ENVIRONMENT=test`
@@ -593,7 +595,7 @@ Workflow :
 
 Configuration GitHub requise :
 
-- deux environnements GitHub : `development` et `production`
+- deux environnements GitHub : `dev` et `prod`
 - dans chaque environnement :
   - secret `HF_TOKEN`
   - variable `HF_USERNAME`
@@ -604,7 +606,7 @@ Comment configurer ces éléments :
 1. créer le Space API sur Hugging Face en mode `Docker` ;
 2. récupérer votre nom d'utilisateur Hugging Face, par exemple `rayakevin` ;
 3. relever le nom exact du Space, par exemple `p5-employee-attrition-api` ;
-4. dans GitHub, créer les environnements `development` et `production` ;
+4. dans GitHub, créer les environnements `dev` et `prod` ;
 5. dans chaque environnement, ouvrir `Secrets and variables` ;
 6. créer le secret `HF_TOKEN` dans `Secrets` ;
 7. créer `HF_USERNAME` et `HF_SPACE_NAME` dans `Variables`.
@@ -624,8 +626,14 @@ Valeurs à renseigner :
 
 Logique de branche recommandée :
 
-- `develop` deploie l'environnement `development` ;
-- `main` deploie l'environnement `production`.
+- `develop` deploie l'environnement `dev` ;
+- `main` deploie l'environnement `prod`.
+
+Declenchement :
+
+- `ci.yml` lance les tests ;
+- `cd.yml` se declenche automatiquement via `workflow_run` apres une CI en succes sur `develop` ou `main` ;
+- `workflow_dispatch` reste disponible pour un redeploiement manuel de l'API.
 
 Important :
 
@@ -641,7 +649,7 @@ Workflow :
 
 Configuration GitHub requise :
 
-- deux environnements GitHub : `development` et `production`
+- deux environnements GitHub : `dev` et `prod`
 - dans chaque environnement :
   - secret `HF_TOKEN`
   - variable `HF_USERNAME`
@@ -656,7 +664,7 @@ Logique de configuration :
 Procédure :
 
 1. créer un second Space Hugging Face dédié au portfolio, lui aussi en mode `Docker` ;
-2. dans GitHub, ouvrir l'environnement `development` ou `production` selon la cible ;
+2. dans GitHub, ouvrir l'environnement `dev` ou `prod` selon la cible ;
 3. vérifier que `HF_TOKEN` existe déjà ;
 4. ajouter ou mettre à jour `HF_USERNAME` ;
 5. ajouter `HF_PORTFOLIO_SPACE_NAME` dans `Variables`.
@@ -665,6 +673,11 @@ Documentation de deploiement :
 
 - [`deploy/huggingface/README.md`](deploy/huggingface/README.md)
 - [`deploy/huggingface/portfolio.README.md`](deploy/huggingface/portfolio.README.md)
+
+Declenchement :
+
+- `cd-portfolio.yml` se declenche automatiquement via `workflow_run` apres une CI en succes sur `develop` ou `main` ;
+- `workflow_dispatch` reste disponible pour un redeploiement manuel du portfolio.
 
 ## 14. Déploiement distant
 

@@ -70,3 +70,195 @@ jobs:
         with:
           name: coverage-report
           path: coverage.xml
+
+  deploy-api:
+    if: ${{ github.event_name == 'push' && (github.ref_name == 'develop' || github.ref_name == 'main') }}
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    environment:
+      name: ${{ github.ref_name == 'main' && 'production' || 'development' }}
+    concurrency:
+      group: deploy-api-${{ github.ref_name }}
+      cancel-in-progress: true
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          lfs: true
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          push: false
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Prepare Space repository content
+        run: |
+          mkdir -p hf-space-sync
+          cp Dockerfile hf-space-sync/Dockerfile
+          cp requirements.runtime.txt hf-space-sync/requirements.runtime.txt
+          cp deploy/huggingface/README.md hf-space-sync/README.md
+          cp pyproject.toml hf-space-sync/pyproject.toml
+          rsync -av app/ hf-space-sync/app/
+          rsync -av artifacts/ hf-space-sync/artifacts/
+          mkdir -p hf-space-sync/scripts
+          cp scripts/create_db.py hf-space-sync/scripts/create_db.py
+
+      - name: Push to Hugging Face Space
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          HF_USERNAME: ${{ vars.HF_USERNAME }}
+          HF_SPACE_NAME: ${{ vars.HF_SPACE_NAME }}
+        run: |
+          test -n "$HF_TOKEN"
+          test -n "$HF_USERNAME"
+          test -n "$HF_SPACE_NAME"
+          echo "Target Space: $HF_USERNAME/$HF_SPACE_NAME"
+          cd hf-space-sync
+          git init
+          git checkout -b main
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .
+          git commit -m "Deploy from GitHub Actions"
+          git push --force https://$HF_USERNAME:$HF_TOKEN@huggingface.co/spaces/$HF_USERNAME/$HF_SPACE_NAME main
+
+  smoke-test-api:
+    if: ${{ github.event_name == 'push' && (github.ref_name == 'develop' || github.ref_name == 'main') }}
+    needs: deploy-api
+    runs-on: ubuntu-latest
+    environment:
+      name: ${{ github.ref_name == 'main' && 'production' || 'development' }}
+
+    steps:
+      - name: Probe deployed API endpoints
+        env:
+          HF_USERNAME: ${{ vars.HF_USERNAME }}
+          HF_SPACE_NAME: ${{ vars.HF_SPACE_NAME }}
+        run: |
+          test -n "$HF_USERNAME"
+          test -n "$HF_SPACE_NAME"
+
+          SPACE_HOST=$(printf '%s-%s' "$HF_USERNAME" "$HF_SPACE_NAME" | tr '[:upper:]' '[:lower:]')
+          BASE_URL="https://${SPACE_HOST}.hf.space"
+
+          echo "Waiting for API deployment on ${BASE_URL}"
+
+          for endpoint in "/health" "/docs" "/openapi.json"; do
+            success=0
+            for attempt in $(seq 1 30); do
+              if curl --fail --silent --show-error "${BASE_URL}${endpoint}" > /dev/null; then
+                echo "Endpoint ${endpoint} is reachable."
+                success=1
+                break
+              fi
+              echo "Attempt ${attempt}/30 failed for ${endpoint}; retrying in 10s..."
+              sleep 10
+            done
+
+            if [ "$success" -ne 1 ]; then
+              echo "Smoke test failed for ${BASE_URL}${endpoint}"
+              exit 1
+            fi
+          done
+
+  deploy-portfolio:
+    if: ${{ github.event_name == 'push' && (github.ref_name == 'develop' || github.ref_name == 'main') }}
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    environment:
+      name: ${{ github.ref_name == 'main' && 'production' || 'development' }}
+    concurrency:
+      group: deploy-portfolio-${{ github.ref_name }}
+      cancel-in-progress: true
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Streamlit Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile.streamlit
+          push: false
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Prepare Portfolio Space repository content
+        run: |
+          mkdir -p hf-space-sync
+          cp Dockerfile.streamlit hf-space-sync/Dockerfile
+          cp requirements.streamlit.txt hf-space-sync/requirements.streamlit.txt
+          cp deploy/huggingface/portfolio.README.md hf-space-sync/README.md
+          rsync -av ui/ hf-space-sync/ui/
+          rsync -av .streamlit/ hf-space-sync/.streamlit/
+
+      - name: Push to Hugging Face Portfolio Space
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          HF_USERNAME: ${{ vars.HF_USERNAME }}
+          HF_SPACE_NAME: ${{ vars.HF_PORTFOLIO_SPACE_NAME }}
+        run: |
+          test -n "$HF_TOKEN"
+          test -n "$HF_USERNAME"
+          test -n "$HF_SPACE_NAME"
+          echo "Target Space: $HF_USERNAME/$HF_SPACE_NAME"
+          cd hf-space-sync
+          git init
+          git checkout -b main
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .
+          git commit -m "Deploy portfolio from GitHub Actions"
+          git push --force https://$HF_USERNAME:$HF_TOKEN@huggingface.co/spaces/$HF_USERNAME/$HF_SPACE_NAME main
+
+  smoke-test-portfolio:
+    if: ${{ github.event_name == 'push' && (github.ref_name == 'develop' || github.ref_name == 'main') }}
+    needs: deploy-portfolio
+    runs-on: ubuntu-latest
+    environment:
+      name: ${{ github.ref_name == 'main' && 'production' || 'development' }}
+
+    steps:
+      - name: Probe deployed portfolio root page
+        env:
+          HF_USERNAME: ${{ vars.HF_USERNAME }}
+          HF_SPACE_NAME: ${{ vars.HF_PORTFOLIO_SPACE_NAME }}
+        run: |
+          test -n "$HF_USERNAME"
+          test -n "$HF_SPACE_NAME"
+
+          SPACE_HOST=$(printf '%s-%s' "$HF_USERNAME" "$HF_SPACE_NAME" | tr '[:upper:]' '[:lower:]')
+          BASE_URL="https://${SPACE_HOST}.hf.space"
+
+          echo "Waiting for portfolio deployment on ${BASE_URL}"
+
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent --show-error "${BASE_URL}" > /dev/null; then
+              echo "Portfolio root is reachable."
+              exit 0
+            fi
+            echo "Attempt ${attempt}/30 failed for ${BASE_URL}; retrying in 10s..."
+            sleep 10
+          done
+
+          echo "Smoke test failed for ${BASE_URL}"
+          exit 1

@@ -1,36 +1,33 @@
 name: CD API
 
 on:
-  workflow_run:
-    workflows:
-      - CI
-    types:
-      - completed
   workflow_dispatch:
+    inputs:
+      target_environment:
+        description: GitHub environment to deploy
+        required: true
+        default: development
+        type: choice
+        options:
+          - development
+          - production
+      git_ref:
+        description: Branch, tag or commit to deploy
+        required: true
+        default: main
+        type: string
 
 concurrency:
-  group: cd-api-${{ github.event.workflow_run.head_branch || github.ref_name || 'manual' }}
+  group: cd-api-${{ inputs.target_environment || github.ref_name || 'manual' }}
   cancel-in-progress: true
 
 jobs:
   deploy-to-hf-space:
-    if: >-
-      ${{
-        github.event_name == 'workflow_dispatch' ||
-        (
-          github.event.workflow_run.conclusion == 'success' &&
-          github.event.workflow_run.event == 'push' &&
-          (
-            github.event.workflow_run.head_branch == 'develop' ||
-            github.event.workflow_run.head_branch == 'main'
-          )
-        )
-      }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
     environment:
-      name: ${{ (github.event.workflow_run.head_branch || github.ref_name) == 'main' && 'production' || 'development' }}
+      name: ${{ inputs.target_environment }}
 
     steps:
       - name: Checkout repository
@@ -38,7 +35,7 @@ jobs:
         with:
           fetch-depth: 0
           lfs: true
-          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+          ref: ${{ inputs.git_ref }}
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -88,7 +85,7 @@ jobs:
     if: ${{ needs.deploy-to-hf-space.result == 'success' }}
     runs-on: ubuntu-latest
     environment:
-      name: ${{ (github.event.workflow_run.head_branch || github.ref_name) == 'main' && 'production' || 'development' }}
+      name: ${{ inputs.target_environment }}
 
     steps:
       - name: Probe deployed API endpoints

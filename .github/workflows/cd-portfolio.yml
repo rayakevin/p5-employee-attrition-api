@@ -1,26 +1,43 @@
 name: CD Portfolio
 
 on:
-  push:
-    branches:
-      - develop
-      - main
+  workflow_run:
+    workflows:
+      - CI
+    types:
+      - completed
   workflow_dispatch:
+
+concurrency:
+  group: cd-portfolio-${{ github.event.workflow_run.head_branch || github.ref_name || 'manual' }}
+  cancel-in-progress: true
 
 jobs:
   deploy-portfolio-to-hf-space:
-    if: ${{ vars.HF_PORTFOLIO_SPACE_NAME != '' }}
+    if: >-
+      ${{
+        github.event_name == 'workflow_dispatch' ||
+        (
+          github.event.workflow_run.conclusion == 'success' &&
+          github.event.workflow_run.event == 'push' &&
+          (
+            github.event.workflow_run.head_branch == 'develop' ||
+            github.event.workflow_run.head_branch == 'main'
+          )
+        )
+      }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
     environment:
-      name: ${{ github.ref_name == 'main' && 'production' || 'development' }}
+      name: ${{ (github.event.workflow_run.head_branch || github.ref_name) == 'main' && 'production' || 'development' }}
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v5
         with:
           fetch-depth: 0
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -61,3 +78,36 @@ jobs:
           git add .
           git commit -m "Deploy portfolio from GitHub Actions"
           git push --force https://$HF_USERNAME:$HF_TOKEN@huggingface.co/spaces/$HF_USERNAME/$HF_SPACE_NAME main
+
+  smoke-test-portfolio:
+    needs: deploy-portfolio-to-hf-space
+    if: ${{ needs.deploy-portfolio-to-hf-space.result == 'success' }}
+    runs-on: ubuntu-latest
+    environment:
+      name: ${{ (github.event.workflow_run.head_branch || github.ref_name) == 'main' && 'production' || 'development' }}
+
+    steps:
+      - name: Probe deployed portfolio root page
+        env:
+          HF_USERNAME: ${{ vars.HF_USERNAME }}
+          HF_SPACE_NAME: ${{ vars.HF_PORTFOLIO_SPACE_NAME }}
+        run: |
+          test -n "$HF_USERNAME"
+          test -n "$HF_SPACE_NAME"
+
+          SPACE_HOST=$(printf '%s-%s' "$HF_USERNAME" "$HF_SPACE_NAME" | tr '[:upper:]' '[:lower:]')
+          BASE_URL="https://${SPACE_HOST}.hf.space"
+
+          echo "Waiting for portfolio deployment on ${BASE_URL}"
+
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent --show-error "${BASE_URL}" > /dev/null; then
+              echo "Portfolio root is reachable."
+              exit 0
+            fi
+            echo "Attempt ${attempt}/30 failed for ${BASE_URL}; retrying in 10s..."
+            sleep 10
+          done
+
+          echo "Smoke test failed for ${BASE_URL}"
+          exit 1

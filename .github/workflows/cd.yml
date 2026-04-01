@@ -1,19 +1,36 @@
-name: CD
+name: CD API
 
 on:
-  push:
-    branches:
-      - develop
-      - main
+  workflow_run:
+    workflows:
+      - CI
+    types:
+      - completed
   workflow_dispatch:
+
+concurrency:
+  group: cd-api-${{ github.event.workflow_run.head_branch || github.ref_name || 'manual' }}
+  cancel-in-progress: true
 
 jobs:
   deploy-to-hf-space:
+    if: >-
+      ${{
+        github.event_name == 'workflow_dispatch' ||
+        (
+          github.event.workflow_run.conclusion == 'success' &&
+          github.event.workflow_run.event == 'push' &&
+          (
+            github.event.workflow_run.head_branch == 'develop' ||
+            github.event.workflow_run.head_branch == 'main'
+          )
+        )
+      }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
     environment:
-      name: ${{ github.ref_name == 'main' && 'production' || 'development' }}
+      name: ${{ (github.event.workflow_run.head_branch || github.ref_name) == 'main' && 'production' || 'development' }}
 
     steps:
       - name: Checkout repository
@@ -21,6 +38,7 @@ jobs:
         with:
           fetch-depth: 0
           lfs: true
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -64,3 +82,42 @@ jobs:
           git add .
           git commit -m "Deploy from GitHub Actions"
           git push --force https://$HF_USERNAME:$HF_TOKEN@huggingface.co/spaces/$HF_USERNAME/$HF_SPACE_NAME main
+
+  smoke-test-api:
+    needs: deploy-to-hf-space
+    if: ${{ needs.deploy-to-hf-space.result == 'success' }}
+    runs-on: ubuntu-latest
+    environment:
+      name: ${{ (github.event.workflow_run.head_branch || github.ref_name) == 'main' && 'production' || 'development' }}
+
+    steps:
+      - name: Probe deployed API endpoints
+        env:
+          HF_USERNAME: ${{ vars.HF_USERNAME }}
+          HF_SPACE_NAME: ${{ vars.HF_SPACE_NAME }}
+        run: |
+          test -n "$HF_USERNAME"
+          test -n "$HF_SPACE_NAME"
+
+          SPACE_HOST=$(printf '%s-%s' "$HF_USERNAME" "$HF_SPACE_NAME" | tr '[:upper:]' '[:lower:]')
+          BASE_URL="https://${SPACE_HOST}.hf.space"
+
+          echo "Waiting for API deployment on ${BASE_URL}"
+
+          for endpoint in "/health" "/docs" "/openapi.json"; do
+            success=0
+            for attempt in $(seq 1 30); do
+              if curl --fail --silent --show-error "${BASE_URL}${endpoint}" > /dev/null; then
+                echo "Endpoint ${endpoint} is reachable."
+                success=1
+                break
+              fi
+              echo "Attempt ${attempt}/30 failed for ${endpoint}; retrying in 10s..."
+              sleep 10
+            done
+
+            if [ "$success" -ne 1 ]; then
+              echo "Smoke test failed for ${BASE_URL}${endpoint}"
+              exit 1
+            fi
+          done

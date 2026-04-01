@@ -1,6 +1,14 @@
 name: CD Portfolio
 
 on:
+  workflow_run:
+    workflows:
+      - CI
+    types:
+      - completed
+    branches:
+      - develop
+      - main
   workflow_dispatch:
     inputs:
       target_environment:
@@ -18,23 +26,31 @@ on:
         type: string
 
 concurrency:
-  group: cd-portfolio-${{ inputs.target_environment || github.ref_name || 'manual' }}
+  group: cd-portfolio-${{ github.event.workflow_run.head_branch || inputs.target_environment || github.ref_name || 'manual' }}
   cancel-in-progress: true
 
 jobs:
   deploy-portfolio-to-hf-space:
+    if: >-
+      ${{
+        github.event_name == 'workflow_dispatch' ||
+        (
+          github.event.workflow_run.conclusion == 'success' &&
+          github.event.workflow_run.event == 'push'
+        )
+      }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
     environment:
-      name: ${{ inputs.target_environment }}
+      name: ${{ (github.event.workflow_run.head_branch || inputs.target_environment) == 'main' && 'prod' || 'dev' }}
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v5
         with:
           fetch-depth: 0
-          ref: ${{ inputs.git_ref }}
+          ref: ${{ github.event.workflow_run.head_sha || inputs.git_ref }}
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -100,7 +116,7 @@ jobs:
     if: ${{ needs.deploy-portfolio-to-hf-space.result == 'success' }}
     runs-on: ubuntu-latest
     environment:
-      name: ${{ inputs.target_environment }}
+      name: ${{ (github.event.workflow_run.head_branch || inputs.target_environment) == 'main' && 'prod' || 'dev' }}
 
     steps:
       - name: Probe deployed portfolio root page
@@ -111,7 +127,8 @@ jobs:
           test -n "$HF_USERNAME"
           test -n "$HF_SPACE_NAME"
 
-          SPACE_HOST=$(printf '%s-%s' "$HF_USERNAME" "$HF_SPACE_NAME" | tr '[:upper:]' '[:lower:]')
+          PUBLIC_SPACE_NAME=$(printf '%s' "$HF_SPACE_NAME" | tr '[:upper:]_' '[:lower:]-')
+          SPACE_HOST=$(printf '%s-%s' "$HF_USERNAME" "$PUBLIC_SPACE_NAME")
           BASE_URL="https://${SPACE_HOST}.hf.space"
 
           echo "Waiting for portfolio deployment on ${BASE_URL}"

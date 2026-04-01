@@ -3,6 +3,7 @@ name: CD Portfolio
 on:
   push:
     branches:
+      - develop
       - main
   workflow_dispatch:
 
@@ -12,6 +13,8 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+    environment:
+      name: ${{ github.ref_name == 'main' && 'production' || 'development' }}
 
     steps:
       - name: Checkout repository

@@ -161,20 +161,38 @@ uv pip install -r requirements.txt
 
 La configuration du projet est préfixée par `P5_`.
 
-Variable principale :
+Le projet distingue désormais trois environnements :
+
+- `development` : travail local ;
+- `test` : CI et Pytest ;
+- `production` : déploiement distant.
+
+En local, le plus simple est de partir du fichier [`.env.example`](.env.example) puis de créer un `.env` non versionné.
+
+Variables importantes :
+
+```env
+P5_ENVIRONMENT=development
+P5_DEBUG=true
+P5_API_KEY=change-me-local-dev-key
+P5_API_BASE_URL=http://127.0.0.1:8000
+
+POSTGRES_DB=p5_attrition
+POSTGRES_USER=postgres
+POSTGRES_PASSWORD=change-me-postgres-password
+```
+
+Chaîne de connexion locale recommandée pour l'API :
 
 ```env
 P5_DATABASE_URL=postgresql+psycopg://postgres:postgres@127.0.0.1:5433/p5_attrition
 ```
 
-Variable utile pour le portfolio Streamlit :
+Règles importantes :
 
-```env
-P5_API_BASE_URL=http://127.0.0.1:8000
-P5_API_KEY=p5-demo-local-key
-```
-
-En déploiement distant, si `P5_DATABASE_URL` n'est pas définie, l'API ne peut pas s'appuyer sur le PostgreSQL local du projet. Elle bascule alors sur une base SQLite embarquée dans le conteneur, stockée sur un chemin explicitement écrivable par le runtime Hugging Face Spaces. Ce fallback permet de faire fonctionner l'API et de conserver une traçabilité minimale des appels, mais il ne remplace pas une base PostgreSQL durable.
+- en `development`, une configuration locale de secours existe pour accélérer le démarrage ;
+- en `test`, la CI impose explicitement sa configuration ;
+- en `production`, `P5_DATABASE_URL` et `P5_API_KEY` doivent être fournis explicitement.
 
 ## 7. Lancement local avec PostgreSQL
 
@@ -190,6 +208,7 @@ Le projet utilise `5433` pour eviter les collisions avec une installation Postgr
 
 ```powershell
 $env:P5_DATABASE_URL="postgresql+psycopg://postgres:postgres@127.0.0.1:5433/p5_attrition"
+$env:P5_API_KEY="change-me-local-dev-key"
 uv run python scripts/create_db.py
 uv run python scripts/seed_data.py
 ```
@@ -204,7 +223,9 @@ Un script de `seed` est un script qui peuple une base avec des donnees initiales
 ### 7.3 Démarrer l'API
 
 ```powershell
+$env:P5_ENVIRONMENT="development"
 $env:P5_DATABASE_URL="postgresql+psycopg://postgres:postgres@127.0.0.1:5433/p5_attrition"
+$env:P5_API_KEY="change-me-local-dev-key"
 uv run uvicorn app.main:app --reload
 ```
 
@@ -503,7 +524,7 @@ uv run pytest --cov=app --cov-report=term-missing --cov-report=html --cov-report
 
 Résultats obtenus sur l'état actuel du dépôt :
 
-- `22 passed` ;
+- `27 passed` ;
 - couverture totale `89%` sur le package `app` ;
 - génération d'un rapport terminal détaillé ;
 - génération de `htmlcov/index.html` pour une lecture visuelle ;
@@ -558,6 +579,12 @@ La CI :
 - charge les donnees source ;
 - execute les tests.
 
+Variables CI imposees :
+
+- `P5_ENVIRONMENT=test`
+- `P5_API_KEY=p5-test-key`
+- `P5_DATABASE_URL` pointe vers le service PostgreSQL du job GitHub Actions.
+
 ### 13.2 CD API
 
 Workflow :
@@ -566,18 +593,21 @@ Workflow :
 
 Configuration GitHub requise :
 
-- secret `HF_TOKEN`
-- variable `HF_USERNAME`
-- variable `HF_SPACE_NAME`
+- deux environnements GitHub : `development` et `production`
+- dans chaque environnement :
+  - secret `HF_TOKEN`
+  - variable `HF_USERNAME`
+  - variable `HF_SPACE_NAME`
 
 Comment configurer ces éléments :
 
 1. créer le Space API sur Hugging Face en mode `Docker` ;
 2. récupérer votre nom d'utilisateur Hugging Face, par exemple `rayakevin` ;
 3. relever le nom exact du Space, par exemple `p5-employee-attrition-api` ;
-4. dans GitHub, ouvrir `Settings > Secrets and variables > Actions` ;
-5. créer le secret `HF_TOKEN` dans `Secrets` ;
-6. créer `HF_USERNAME` et `HF_SPACE_NAME` dans `Variables`.
+4. dans GitHub, créer les environnements `development` et `production` ;
+5. dans chaque environnement, ouvrir `Secrets and variables` ;
+6. créer le secret `HF_TOKEN` dans `Secrets` ;
+7. créer `HF_USERNAME` et `HF_SPACE_NAME` dans `Variables`.
 
 Comment obtenir `HF_TOKEN` :
 
@@ -592,6 +622,17 @@ Valeurs à renseigner :
 - `HF_USERNAME` : votre nom de compte Hugging Face ;
 - `HF_SPACE_NAME` : le nom exact du Space API.
 
+Logique de branche recommandée :
+
+- `develop` deploie l'environnement `development` ;
+- `main` deploie l'environnement `production`.
+
+Important :
+
+- les variables GitHub pilotent le workflow de publication ;
+- les secrets et variables du runtime Hugging Face doivent aussi etre definis dans le Space lui-meme pour l'execution du conteneur ;
+- pour une production propre, le Space API doit recevoir au minimum `P5_ENVIRONMENT=production`, `P5_API_KEY` et `P5_DATABASE_URL`.
+
 ### 13.3 CD portfolio Streamlit
 
 Workflow :
@@ -600,9 +641,11 @@ Workflow :
 
 Configuration GitHub requise :
 
-- secret `HF_TOKEN`
-- variable `HF_USERNAME`
-- variable `HF_PORTFOLIO_SPACE_NAME`
+- deux environnements GitHub : `development` et `production`
+- dans chaque environnement :
+  - secret `HF_TOKEN`
+  - variable `HF_USERNAME`
+  - variable `HF_PORTFOLIO_SPACE_NAME`
 
 Logique de configuration :
 
@@ -613,7 +656,7 @@ Logique de configuration :
 Procédure :
 
 1. créer un second Space Hugging Face dédié au portfolio, lui aussi en mode `Docker` ;
-2. dans GitHub, ouvrir `Settings > Secrets and variables > Actions` ;
+2. dans GitHub, ouvrir l'environnement `development` ou `production` selon la cible ;
 3. vérifier que `HF_TOKEN` existe déjà ;
 4. ajouter ou mettre à jour `HF_USERNAME` ;
 5. ajouter `HF_PORTFOLIO_SPACE_NAME` dans `Variables`.
@@ -632,7 +675,8 @@ Important :
 - le Space API sert de preuve de deploiement distant ;
 - la reference technique pour le P5 reste l'environnement local avec PostgreSQL ;
 - les rebuilds HF peuvent etre longs, donc le debug principal reste local ;
-- le fallback SQLite du Space API est prevu pour un chemin de fichier ecrivable dans le conteneur.
+- la cible recommandee en production reste un PostgreSQL distant fourni via `P5_DATABASE_URL` ;
+- SQLite ne doit plus etre considere comme la cible normale d'exploitation.
 
 Exemples de verification distante :
 
@@ -658,11 +702,21 @@ Resume pratique :
 
 ### 16.1 Branches
 
-- `feature/<sujet>` : nouvelle fonctionnalite
-- `fix/<sujet>` : correction de bug
-- `docs/<sujet>` : documentation
-- `chore/<sujet>` : maintenance, packaging, nettoyage
-- `test/<sujet>` : ajout ou reprise de tests
+Le projet suit une logique simple inspiree de GitFlow :
+
+- `main` : branche de reference pour la production ;
+- `develop` : branche d'integration continue pour l'environnement de developpement ;
+- `feature/<sujet>` : nouvelle fonctionnalite ;
+- `fix/<sujet>` : correction de bug ;
+- `docs/<sujet>` : documentation ;
+- `chore/<sujet>` : maintenance, packaging, nettoyage ;
+- `test/<sujet>` : ajout ou reprise de tests.
+
+Flux recommande :
+
+1. developper sur `feature/*` ;
+2. merger dans `develop` pour valider l'environnement de developpement ;
+3. merger `develop` dans `main` pour publier en production.
 
 ### 16.2 Commits
 

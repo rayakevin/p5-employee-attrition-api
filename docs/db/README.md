@@ -14,8 +14,8 @@ Dans le cadre du P5, la base n'est donc pas un simple support de persistance : e
 Le projet utilise :
 
 - SQLAlchemy comme couche ORM ;
-- PostgreSQL comme base de référence en local ;
-- SQLite comme fallback minimal dans certains déploiements Hugging Face Spaces si `P5_DATABASE_URL` n'est pas fournie.
+- PostgreSQL comme base de référence en local et comme cible recommandée en production ;
+- SQLite seulement comme fallback de secours pour un runtime de démonstration non configuré avec `P5_DATABASE_URL`.
 
 Les modèles ORM se trouvent dans :
 
@@ -38,6 +38,53 @@ employees_source
 
 prediction_requests 1 ----- 1 prediction_results
 prediction_requests 1 ----- N api_audit_logs
+```
+
+## 3.1 Schéma UML simplifié
+
+```mermaid
+classDiagram
+direction LR
+
+class EmployeeSource {
+  +id_employee: int
+  +age: int
+  +genre: str
+  +revenu_mensuel: float
+  +departement: str
+  +poste: str
+  +loaded_at: datetime
+}
+
+class PredictionRequest {
+  +id: int
+  +source_channel: str
+  +payload_json: json
+  +requested_at: datetime
+}
+
+class PredictionResult {
+  +id: int
+  +request_id: int
+  +prediction: int
+  +score: float
+  +threshold: float
+  +model_name: str
+  +model_version: str
+  +created_at: datetime
+}
+
+class ApiAuditLog {
+  +id: int
+  +request_id: int
+  +endpoint: str
+  +status_code: int
+  +error_message: str
+  +created_at: datetime
+}
+
+PredictionRequest "1" --> "1" PredictionResult : produit
+PredictionRequest "1" --> "*" ApiAuditLog : genere
 ```
 
 Interprétation :
@@ -205,6 +252,22 @@ Les colonnes essentielles au fonctionnement sont déclarées `nullable=False`, n
 - les champs structurants du résultat dans `prediction_results` ;
 - l'endpoint et le code HTTP dans `api_audit_logs`.
 
+### Contraintes actuellement explicites
+
+Le projet matérialise déjà :
+
+- les clés primaires ;
+- les clés étrangères ;
+- l'unicité du lien requête -> résultat ;
+- les horodatages par défaut ;
+- les non-nullités utiles au flux applicatif.
+
+Une montée en gamme possible serait d'ajouter plus tard :
+
+- des index complémentaires sur les tables de traçabilité ;
+- quelques `CHECK` constraints métier ;
+- des migrations versionnées avec Alembic.
+
 ### Horodatage
 
 Les tables principales disposent d'un horodatage par défaut (`server_default=func.now()`), ce qui facilite :
@@ -304,9 +367,9 @@ Si le projet devait évoluer vers un volume plus important, les pistes naturelle
 
 ### Hugging Face Spaces
 
-- si `P5_DATABASE_URL` n'est pas fournie, l'API utilise SQLite dans le conteneur ;
-- cette SQLite n'est là que pour permettre le fonctionnement minimal du service ;
-- elle ne doit pas être interprétée comme une vraie persistance métier durable.
+- la cible recommandée est un PostgreSQL distant fourni via `P5_DATABASE_URL` ;
+- SQLite ne reste qu'un filet de sécurité éventuel pour un runtime de démonstration non configuré ;
+- dans une configuration de production propre, le Space API doit recevoir sa chaîne PostgreSQL et ne pas s'appuyer sur SQLite.
 
 Important :
 
@@ -354,7 +417,7 @@ Limites actuelles :
 - absence de table d'agrégats métier dédiée ;
 - absence de tableaux de bord décisionnels multi-indicateurs sur longue période ;
 - absence de stratégie de volumétrie avancée au-delà du périmètre pédagogique ;
-- persistance distante limitée sur Hugging Face Spaces.
+- dépendance à une base distante à configurer explicitement en production.
 
 Pistes d'amélioration si le projet devait être prolongé :
 

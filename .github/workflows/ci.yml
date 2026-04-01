@@ -4,14 +4,18 @@ on:
   push:
     branches:
       - main
+      - develop
       - feature/**
       - docs/**
   pull_request:
     branches:
       - main
+      - develop
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+  P5_ENVIRONMENT: test
+  P5_API_KEY: p5-test-key
   P5_DATABASE_URL: postgresql+psycopg://postgres:postgres@127.0.0.1:5432/p5_attrition
 
 jobs:

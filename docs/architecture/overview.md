@@ -12,7 +12,8 @@ Les couches principales sont :
 - `ml` : chargement du modèle, preprocessing et calcul du score ;
 - `db` : persistance SQLAlchemy et modèles ORM ;
 - `scripts` : initialisation, export et seed ;
-- `tests` : vérification du comportement.
+- `tests` : vérification du comportement ;
+- `ui` : interface Streamlit de démonstration.
 
 Documents complémentaires :
 
@@ -49,23 +50,39 @@ La logique de persistance est volontairement simple :
 - un résultat est créé si la prédiction aboutit ;
 - un log est écrit dans tous les cas.
 
-En local, la cible recommandée est PostgreSQL.
+## 4. Positionnement des environnements
 
-Sur Hugging Face Spaces, si `P5_DATABASE_URL` n'est pas fournie, l'API bascule automatiquement sur une base SQLite embarquée dans le conteneur. Cette base est stockée sur un chemin explicitement écrivable par le runtime du Space. Son rôle est de permettre à l'API de démarrer, de créer son schéma et de conserver une traçabilité minimale des appels unitaires.
+Le projet formalise trois environnements :
 
-Il faut toutefois bien distinguer ce fallback d'une vraie base métier :
+- `development` pour le travail local ;
+- `test` pour la CI et Pytest ;
+- `production` pour le déploiement distant.
 
-- cette SQLite n'est pas pensée pour une persistance durable ;
-- son contenu peut être perdu lors d'un rebuild, d'un redémarrage ou d'un redéploiement du Space ;
-- elle ne remplace pas PostgreSQL pour un usage local sérieux, des tests d'intégration complets ou une exploitation stable ;
-- elle sert surtout à éviter qu'un déploiement de démonstration distant échoue faute de base disponible.
+### Développement local
 
-Autrement dit, le projet repose sur deux logiques de persistance :
+- cible recommandée : PostgreSQL local lancé par Docker Compose ;
+- usage : développement, démonstration, seed et vérification SQL ;
+- configuration attendue : `P5_ENVIRONMENT=development`.
 
-- PostgreSQL local comme référence technique du P5 ;
-- SQLite conteneurisée comme solution de fonctionnement minimal sur Hugging Face Spaces.
+### Test
 
-## 4. Flux modèle
+- cible recommandée : PostgreSQL du job CI pour les scripts, plus SQLite mémoire dans certains tests rapides ;
+- usage : exécution automatisée du pipeline ;
+- configuration attendue : `P5_ENVIRONMENT=test`.
+
+### Production
+
+- cible recommandée : PostgreSQL distant fourni via `P5_DATABASE_URL` ;
+- usage : runtime du Space API et environnement démontrable ;
+- configuration attendue : `P5_ENVIRONMENT=production`.
+
+Point important :
+
+- en production, `P5_DATABASE_URL` et `P5_API_KEY` doivent être fournis explicitement ;
+- SQLite n'est pas la cible normale de production ;
+- SQLite ne reste qu'un filet de sécurité éventuel pour un runtime de démonstration non configuré.
+
+## 5. Flux modèle
 
 Le modèle est exporté avec MLflow puis chargé au runtime depuis `artifacts/model/`.
 
@@ -79,7 +96,7 @@ La metadata associée permet de conserver :
 
 Le feature engineering ne dépend plus de la base de données pour fonctionner au runtime : les références utiles sont embarquées dans `artifacts/model/preprocessing_reference.json`.
 
-## 5. Choix d'architecture
+## 6. Choix d'architecture
 
 Cette architecture a été retenue pour :
 
@@ -88,7 +105,7 @@ Cette architecture a été retenue pour :
 - pouvoir remplacer plus tard un composant sans réécrire tout le projet ;
 - limiter la confusion entre logique HTTP, logique métier et logique modèle.
 
-## 6. Réponse au besoin analytique du P5
+## 7. Réponse au besoin analytique du P5
 
 L'architecture actuelle répond, à notre sens, au besoin analytique attendu dans le cadre du P5.
 

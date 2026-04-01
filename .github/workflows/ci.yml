@@ -114,16 +114,27 @@ jobs:
           mkdir -p hf-space-sync/scripts
           cp scripts/create_db.py hf-space-sync/scripts/create_db.py
 
+      - name: Validate Hugging Face API token
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          test -n "$HF_TOKEN"
+
+      - name: Validate Hugging Face API target
+        env:
+          HF_USERNAME: ${{ vars.HF_USERNAME }}
+          HF_SPACE_NAME: ${{ vars.HF_SPACE_NAME }}
+        run: |
+          test -n "$HF_USERNAME"
+          test -n "$HF_SPACE_NAME"
+          echo "Target Space: $HF_USERNAME/$HF_SPACE_NAME"
+
       - name: Push to Hugging Face Space
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
           HF_USERNAME: ${{ vars.HF_USERNAME }}
           HF_SPACE_NAME: ${{ vars.HF_SPACE_NAME }}
         run: |
-          test -n "$HF_TOKEN"
-          test -n "$HF_USERNAME"
-          test -n "$HF_SPACE_NAME"
-          echo "Target Space: $HF_USERNAME/$HF_SPACE_NAME"
           cd hf-space-sync
           git init
           git checkout -b main
@@ -211,16 +222,27 @@ jobs:
           rsync -av ui/ hf-space-sync/ui/
           rsync -av .streamlit/ hf-space-sync/.streamlit/
 
+      - name: Validate Hugging Face portfolio token
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          test -n "$HF_TOKEN"
+
+      - name: Validate Hugging Face portfolio target
+        env:
+          HF_USERNAME: ${{ vars.HF_USERNAME }}
+          HF_SPACE_NAME: ${{ vars.HF_PORTFOLIO_SPACE_NAME }}
+        run: |
+          test -n "$HF_USERNAME"
+          test -n "$HF_SPACE_NAME"
+          echo "Target Space: $HF_USERNAME/$HF_SPACE_NAME"
+
       - name: Push to Hugging Face Portfolio Space
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
           HF_USERNAME: ${{ vars.HF_USERNAME }}
           HF_SPACE_NAME: ${{ vars.HF_PORTFOLIO_SPACE_NAME }}
         run: |
-          test -n "$HF_TOKEN"
-          test -n "$HF_USERNAME"
-          test -n "$HF_SPACE_NAME"
-          echo "Target Space: $HF_USERNAME/$HF_SPACE_NAME"
           cd hf-space-sync
           git init
           git checkout -b main

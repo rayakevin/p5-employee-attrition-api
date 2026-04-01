@@ -76,6 +76,14 @@ jobs:
           test -n "$HF_SPACE_NAME"
           echo "Target Space: $HF_USERNAME/$HF_SPACE_NAME"
 
+      - name: Validate Hugging Face API git access
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          HF_USERNAME: ${{ vars.HF_USERNAME }}
+          HF_SPACE_NAME: ${{ vars.HF_SPACE_NAME }}
+        run: |
+          git ls-remote "https://$HF_USERNAME:$HF_TOKEN@huggingface.co/spaces/$HF_USERNAME/$HF_SPACE_NAME" HEAD
+
       - name: Push to Hugging Face Space
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}

@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import os
 from typing import Any, Callable
+from urllib.parse import urlparse, urlunparse
 
 import altair as alt
 import httpx
@@ -25,12 +26,60 @@ except ImportError:
 if load_dotenv is not None:
     load_dotenv()
 
+
+def normalize_api_base_url(raw_url: str) -> str:
+    """Normalise l'URL de l'API cible.
+
+    En Hugging Face Spaces, l'URL publique complete contient le proprietaire du
+    Space dans le sous-domaine, par exemple
+    `https://rayakevin-p5-employee-attrition-api-dev.hf.space`.
+
+    Pour rester tolerant a une configuration raccourcie comme
+    `https://p5-employee-attrition-api-dev.hf.space`, on recompose
+    automatiquement le sous-domaine a partir des variables runtime exposees par
+    Hugging Face (`SPACE_AUTHOR_NAME` / `SPACE_HOST`).
+    """
+
+    candidate = raw_url.strip().rstrip("/")
+    if not candidate:
+        return candidate
+
+    parsed = urlparse(candidate)
+    if not parsed.scheme or not parsed.netloc:
+        return candidate
+
+    host = parsed.netloc
+    if not host.endswith(".hf.space"):
+        return candidate
+
+    author_name = os.getenv("SPACE_AUTHOR_NAME", "").strip()
+    if not author_name:
+        current_space_host = os.getenv("SPACE_HOST", "").strip()
+        if current_space_host.endswith(".hf.space"):
+            author_name = current_space_host.removesuffix(".hf.space").split("-", 1)[0]
+
+    if not author_name:
+        return candidate
+
+    subdomain = host.removesuffix(".hf.space")
+    if subdomain.startswith(f"{author_name}-"):
+        return candidate
+
+    # Tolere une URL HF raccourcie basee uniquement sur le slug du repo cible.
+    if subdomain.startswith("p5-"):
+        normalized = parsed._replace(netloc=f"{author_name}-{subdomain}.hf.space")
+        return urlunparse(normalized).rstrip("/")
+
+    return candidate
+
+
 APP_ENVIRONMENT = os.getenv("P5_ENVIRONMENT", "development").lower()
 DEFAULT_API_BASE_URL = os.getenv(
     "P5_API_BASE_URL",
     "http://127.0.0.1:8000" if APP_ENVIRONMENT == "development"
     else "https://rayakevin-p5-employee-attrition-api.hf.space",
 )
+DEFAULT_API_BASE_URL = normalize_api_base_url(DEFAULT_API_BASE_URL)
 DEFAULT_API_KEY = os.getenv("P5_API_KEY")
 if not DEFAULT_API_KEY and APP_ENVIRONMENT == "development":
     DEFAULT_API_KEY = "p5-dev-local-key"

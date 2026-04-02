@@ -1,5 +1,5 @@
 ---
-title: P5 API Attrition Employes
+title: P5 API Attrition Employés
 emoji: "🧠"
 colorFrom: blue
 colorTo: indigo
@@ -7,15 +7,16 @@ sdk: docker
 app_port: 8000
 ---
 
-# P5 API Attrition Employes
+# P5 API Attrition Employés
 
-Ce Space Docker expose l'API FastAPI de prediction d'attrition.
+Ce Space Docker expose l'API FastAPI de prédiction d'attrition.
 
 ## Notes de runtime
 
-- l'application ecoute sur le port `8000`
-- si `P5_DATABASE_URL` n'est pas defini, l'API utilise un fallback SQLite local au conteneur
-- pour conserver une vraie persistance PostgreSQL, il faut definir `P5_DATABASE_URL` dans les secrets ou variables du Space
+- l'application écoute sur le port `8000`
+- le runtime cible attend `P5_ENVIRONMENT=production`
+- pour fonctionner proprement, le Space doit recevoir `P5_API_KEY` et `P5_DATABASE_URL`
+- PostgreSQL distant reste la cible normale d'exploitation du Space API
 
 ## Endpoints utiles
 
@@ -27,10 +28,10 @@ Ce Space Docker expose l'API FastAPI de prediction d'attrition.
 
 ## Role de ce Space
 
-Ce Space sert surtout de preuve de deploiement distant.
+Ce Space sert surtout de preuve de déploiement distant.
 
-La reference technique du projet P5 reste :
+La référence technique du projet P5 reste :
 
 - le fonctionnement local avec PostgreSQL ;
-- les tests automatises ;
-- la verification locale du preprocessing et du score.
+- les tests automatisés ;
+- la vérification locale du preprocessing et du score.

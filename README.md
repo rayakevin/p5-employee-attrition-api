@@ -298,6 +298,8 @@ Le projet conserve quelques alias pour compatibilité, mais le contrat documenta
 ### 8.3 Exemple de payload de prédiction
 
 ```powershell
+$env:P5_API_KEY = "change-me-local-dev-key"
+
 $payload = @{
     age = 35
     genre = "Homme"
@@ -335,6 +337,7 @@ Invoke-RestMethod `
   -Headers @{ "X-API-Key" = $env:P5_API_KEY } `
   -ContentType "application/json" `
   -Body $payload
+
 ```
 
 Exemple de reponse :
@@ -342,7 +345,7 @@ Exemple de reponse :
 ```json
 {
   "prediction": 0,
-  "score": -18.58866414724979,
+  "score": -0,684248556588159,
   "threshold": 0.1138,
   "model_version": "0.1.0",
   "model_name": "linear_svc_attrition"
@@ -352,6 +355,7 @@ Exemple de reponse :
 ### 8.4 Exemple de requête d'explication locale
 
 ```powershell
+$env:P5_API_KEY="change-me-local-dev-key"
 Invoke-RestMethod `
   -Method Post `
   -Uri "http://127.0.0.1:8000/api/v1/explain" `
@@ -370,6 +374,7 @@ La réponse contient :
 ### 8.5 Exemple de requête batch
 
 ```powershell
+$env:P5_API_KEY="change-me-local-dev-key"
 $batch = @{
     rows = @(
         @{

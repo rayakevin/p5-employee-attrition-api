@@ -17,6 +17,7 @@ env:
   P5_ENVIRONMENT: test
   P5_API_KEY: p5-test-key
   P5_DATABASE_URL: postgresql+psycopg://postgres:postgres@127.0.0.1:5432/p5_attrition
+  P5_RUN_POSTGRES_INTEGRATION: "1"
 
 jobs:
   test:
@@ -61,7 +62,7 @@ jobs:
         run: |
           uv run python scripts/seed_data.py
 
-      - name: Run tests
+      - name: Run tests and PostgreSQL integration checks
         run: |
           uv run pytest --cov=app --cov-report=term-missing --cov-report=xml
 

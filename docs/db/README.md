@@ -1,38 +1,34 @@
 # Documentation de la base de donnees
 
-## 1. Role de la base dans le projet
+## 1. Role de la base
 
-La base de donnees remplit deux fonctions distinctes :
+La base de donnees remplit deux fonctions :
 
 - stocker les donnees source fusionnees du projet dans `employees_source` ;
-- tracer le fonctionnement applicatif de l'API via les tables de requetes, de resultats et de logs techniques.
+- tracer les predictions unitaires de l'API via :
+  - `prediction_requests`
+  - `prediction_results`
+  - `api_audit_logs`
 
-Dans le cadre du P5, la base n'est donc pas un simple support de persistance : elle permet aussi d'auditer les appels au modele et de demontrer l'integration d'un moteur ML dans un flux applicatif complet.
+Dans le cadre du P5, elle ne sert donc pas seulement a persister des lignes : elle permet aussi de demontrer la traçabilite applicative du service ML.
 
-## 2. Technologies utilisees
+## 2. Technologie retenue
 
 Le projet utilise :
 
 - SQLAlchemy comme couche ORM ;
 - PostgreSQL comme base de reference en local ;
-- PostgreSQL distant via Supabase comme cible deployee pour les Spaces Hugging Face ;
-- SQLite seulement comme fallback de secours si aucun `P5_DATABASE_URL` n'est fourni.
+- PostgreSQL distant via `P5_DATABASE_URL` pour le deploiement ;
+- SQLite uniquement comme fallback de secours si aucun PostgreSQL n'est configure.
 
-Les modeles ORM se trouvent dans :
+Fichiers principaux :
 
-- [`app/db/models/tracking.py`](../../app/db/models/tracking.py)
+- modeles ORM : [`../../app/db/models/tracking.py`](../../app/db/models/tracking.py)
+- session SQLAlchemy : [`../../app/db/session.py`](../../app/db/session.py)
+- creation du schema : [`../../scripts/create_db.py`](../../scripts/create_db.py)
+- seed : [`../../scripts/seed_data.py`](../../scripts/seed_data.py)
 
-L'initialisation du schema est realisee par :
-
-- [`scripts/create_db.py`](../../scripts/create_db.py)
-
-Le chargement des donnees sources est realise par :
-
-- [`scripts/seed_data.py`](../../scripts/seed_data.py)
-
-## 3. Schema logique
-
-Le schema relationnel du projet est le suivant :
+## 3. Modele de donnees
 
 ```mermaid
 erDiagram
@@ -107,174 +103,96 @@ erDiagram
 
 Legende :
 
-- `PK` : cle primaire ;
-- `FK` : cle etrangere ;
-- `UNIQUE` : contrainte d'unicite ;
-- `NOT NULL` : champ obligatoire ;
-- `DEFAULT now()` : horodatage automatique.
+- `PK` : cle primaire
+- `FK` : cle etrangere
+- `UNIQUE` : contrainte d'unicite
+- `NOT NULL` : champ obligatoire
+- `DEFAULT now()` : horodatage automatique
 
-## 4. Description des tables
+## 4. Tables principales
 
-### 4.1 `employees_source`
+### `employees_source`
 
-Cette table stocke une vue fusionnee des trois jeux de donnees bruts du projet.
-
-Cle principale :
-
-- `id_employee`
+Table source consolidee issue de la fusion des trois CSV metier.
 
 Role :
 
-- servir de base de demonstration et de verification ;
-- fournir un jeu de donnees consolide pour les scripts et les controles SQL ;
-- materialiser l'integration des donnees metier dans l'application.
+- servir de reference locale ;
+- prouver l'integration des donnees ;
+- permettre les verifications SQL et les demonstrations.
 
-### 4.2 `prediction_requests`
+### `prediction_requests`
 
-Cette table stocke la requete brute recue par l'API avant scoring.
+Conserve la requete brute recue par l'API.
 
-Cle principale :
+Champs clefs :
 
-- `id`
+- `source_channel`
+- `payload_json`
+- `requested_at`
 
-Colonnes principales :
+### `prediction_results`
 
-- `source_channel` : canal d'origine, par defaut `api` ;
-- `payload_json` : payload brut recu ;
-- `requested_at` : horodatage de la requete.
+Conserve le resultat metier renvoye par le modele pour une requete unitaire.
 
-Role :
+Champs clefs :
 
-- conserver exactement ce qui a ete demande au service ;
-- servir de point d'ancrage relationnel pour les resultats et les logs.
-
-### 4.3 `prediction_results`
-
-Cette table stocke la sortie du modele pour une requete unitaire.
-
-Cle principale :
-
-- `id`
-
-Cle etrangere :
-
-- `request_id` -> `prediction_requests.id`
-
-Colonnes principales :
-
+- `request_id`
 - `prediction`
 - `score`
 - `threshold`
-- `model_version`
 - `model_name`
-- `created_at`
+- `model_version`
 
-Role :
+Point important :
 
-- tracer le resultat metier effectivement renvoye ;
-- relier une entree API a la sortie du modele ;
-- conserver la version du modele utilisee lors du scoring.
+- `request_id` est `UNIQUE`, ce qui force une relation `1 -> 1` entre requete et resultat.
 
-### 4.4 `api_audit_logs`
+### `api_audit_logs`
 
-Cette table stocke les evenements techniques lies a l'execution de l'API.
+Conserve les evenements techniques lies a l'execution de l'API.
 
-Cle principale :
+Champs clefs :
 
-- `id`
-
-Cle etrangere optionnelle :
-
-- `request_id` -> `prediction_requests.id`
-
-Colonnes principales :
-
+- `request_id`
 - `endpoint`
 - `status_code`
 - `error_message`
 - `created_at`
 
-Role :
+Point important :
 
-- tracer les appels meme en cas d'echec partiel ;
-- conserver les erreurs techniques eventuelles ;
-- separer l'audit technique de la donnee metier.
+- `request_id` est nullable pour laisser un peu de souplesse au logging technique.
 
-## 5. Relations et contraintes
-
-### `prediction_requests` -> `prediction_results`
-
-Relation :
-
-- `1 -> 1`
-
-Justification :
-
-- une requete unitaire persistée ne doit produire qu'un seul resultat metier final ;
-- cette contrainte est materialisee par `request_id` avec unicite dans `prediction_results`.
-
-### `prediction_requests` -> `api_audit_logs`
-
-Relation :
-
-- `1 -> N`
-
-Justification :
-
-- une meme requete peut donner lieu a plusieurs evenements techniques au cours de sa vie ;
-- la table de logs est volontairement plus souple que la table metier.
-
-### `employees_source`
-
-Relation :
-
-- aucune relation directe avec les tables de scoring
-
-Justification :
-
-- cette table represente les donnees source consolidees ;
-- elle n'est pas necessaire au runtime du modele dans les deploiements distants ;
-- elle reste utile en local pour l'exploitation, le controle SQL et les demonstrations.
-
-### Contraintes explicites du schema
+## 5. Contraintes actuellement presentes
 
 Le schema materialise deja :
 
 - les cles primaires ;
 - les cles etrangeres ;
-- l'unicite du lien requete -> resultat ;
-- les horodatages par defaut ;
-- les non-nullites utiles au flux applicatif ;
-- des index explicites sur :
-  - `prediction_requests.requested_at`
-  - `prediction_results.created_at`
-  - `api_audit_logs.created_at`
-  - `api_audit_logs.status_code`
+- l'unicite du lien `request -> result` ;
+- les `NOT NULL` utiles au flux applicatif ;
+- les horodatages par defaut.
 
-Montees en gamme naturelles :
+En revanche, a ce stade :
 
-- quelques `CHECK` constraints metier ;
-- des migrations versionnees avec Alembic.
+- il n'y a pas encore de `CHECK constraints` metier ;
+- il n'y a pas encore de migrations Alembic ;
+- la politique de retention des logs n'est pas automatisee.
 
-## 6. Creation et alimentation de la base
+## 6. Creation du schema
 
-### Creation du schema
-
-Le schema est cree via :
+Commande :
 
 ```powershell
 uv run python scripts/create_db.py
 ```
 
-Le script s'appuie sur `Base.metadata.create_all(...)` pour materialiser toutes les tables ORM.
+Le script charge la metadata SQLAlchemy et cree les tables declarees dans les modeles ORM.
 
-Il cree aussi explicitement les index declares dans les modeles avec
-`checkfirst=True`, ce qui permet de rattraper un ajout d'index sur une base
-deja existante sans migration complete.
+## 7. Seed des donnees source
 
-### Chargement des donnees source
-
-Les donnees source sont chargees via :
+Commande :
 
 ```powershell
 uv run python scripts/seed_data.py
@@ -282,67 +200,114 @@ uv run python scripts/seed_data.py
 
 Le script :
 
-- lit les fichiers presents dans `data/raw/` ;
-- fusionne les extraits metier ;
-- vide puis recharge `employees_source`.
+- charge `extrait_sirh.csv`
+- charge `extrait_eval.csv`
+- charge `extrait_sondage.csv`
+- verifie la cardinalite
+- fusionne les trois sources
+- normalise booleens et pourcentages
+- vide puis recharge `employees_source`
 
-## 7. Local vs deploiement distant
+Etat attendu :
+
+- `1470` lignes inserees
+
+## 8. Exemples d'entrees
+
+### Exemple `prediction_requests`
+
+```json
+{
+  "age": 35,
+  "genre": "Homme",
+  "revenu_mensuel": 4500,
+  "statut_marital": "Marie(e)",
+  "departement": "Consulting",
+  "poste": "Consultant"
+}
+```
+
+### Exemple `prediction_results`
+
+```json
+{
+  "prediction": 0,
+  "score": -18.58866414724979,
+  "threshold": 0.1138,
+  "model_name": "linear_svc_attrition",
+  "model_version": "0.1.0"
+}
+```
+
+### Exemple `api_audit_logs`
+
+```json
+{
+  "endpoint": "/api/v1/predict",
+  "status_code": 200,
+  "error_message": null
+}
+```
+
+## 9. Requetes SQL utiles
+
+### Compter les lignes de la table source
+
+```sql
+SELECT COUNT(*) AS nb_employees_source
+FROM employees_source;
+```
+
+### Verifier la traçabilite unitaire
+
+```sql
+SELECT
+    pr.id AS request_id,
+    pr.requested_at,
+    pr.payload_json->>'genre' AS genre,
+    pr.payload_json->>'departement' AS departement,
+    pr.payload_json->>'poste' AS poste,
+    res.prediction,
+    ROUND(CAST(res.score AS numeric), 4) AS score,
+    ROUND(CAST(res.threshold AS numeric), 4) AS threshold,
+    res.model_name,
+    res.model_version,
+    log.status_code
+FROM prediction_requests pr
+LEFT JOIN prediction_results res
+    ON res.request_id = pr.id
+LEFT JOIN api_audit_logs log
+    ON log.request_id = pr.id
+ORDER BY pr.id DESC
+LIMIT 10;
+```
+
+## 10. Local vs deploiement distant
 
 ### Local
 
 - PostgreSQL est la base recommandee ;
-- elle permet une demonstration complete du schema, du seed et de la tracabilite ;
-- elle constitue la reference technique du projet.
+- elle permet de montrer le schema, le seed et la traçabilite ;
+- elle reste la reference technique du projet.
 
-### Hugging Face Spaces
+### Deploiement distant
 
-- la cible deployee est PostgreSQL via Supabase ;
-- le Space API doit recevoir `P5_DATABASE_URL` et `P5_API_KEY` ;
-- le portfolio n'accede jamais directement a la base.
+- le Space API utilise un PostgreSQL distant via `P5_DATABASE_URL` ;
+- le portfolio n'accede jamais directement a la base ;
+- SQLite n'est pas la cible normale d'exploitation.
 
-Important :
+Point important :
 
 - le preprocessing du modele ne depend plus de la base au runtime ;
-- les references necessaires au feature engineering sont embarquees dans `artifacts/model/preprocessing_reference.json`.
+- les references necessaires a l'inference sont embarquees dans les artefacts du modele.
 
-## 8. Gestion du volume
+## 11. Positionnement par rapport au besoin analytique
 
-Le projet ne vise pas un tres gros volume au sens industriel, mais plusieurs choix sont deja coherents :
+Le projet couvre deja un premier niveau coherent de besoin analytique :
 
-- separation entre donnees source et tables de tracabilite ;
-- absence de persistance massive pour `/predict/batch` ;
-- stockage du payload brut en JSON dans `prediction_requests` ;
-- schema compact et relisibile pour les tests et la demonstration ;
-- indexation explicite des horodatages et du `status_code` pour accelerer les lectures d'audit et les requetes recentes.
+- integration et stockage des donnees source ;
+- prediction unitaire traçable ;
+- analyse batch dans le portfolio ;
+- lecture individuelle d'un employe apres scoring global.
 
-Regle de retention retenue pour le projet :
-
-- les logs techniques de `api_audit_logs` ont vocation a etre conserves 90 jours glissants, puis archives ou purges par une tache de maintenance planifiee si le volume augmente.
-
-Si le volume augmentait, les pistes naturelles seraient :
-
-- retention/purge des logs techniques ;
-- migrations versionnees ;
-- separation plus nette entre base operationnelle et base analytique.
-
-## 9. Fichiers utiles
-
-- Modeles ORM : [`../../app/db/models/tracking.py`](../../app/db/models/tracking.py)
-- Session SQLAlchemy : [`../../app/db/session.py`](../../app/db/session.py)
-- Creation du schema : [`../../scripts/create_db.py`](../../scripts/create_db.py)
-- Seed : [`../../scripts/seed_data.py`](../../scripts/seed_data.py)
-- Documentation architecture : [`../architecture/overview.md`](../architecture/overview.md)
-
-## 10. Positionnement par rapport au besoin analytique
-
-Le projet couvre un premier niveau solide de besoin analytique :
-
-- ingestion et fusion des donnees brutes ;
-- stockage structure des donnees source dans `employees_source` ;
-- tracabilite des appels unitaires au modele ;
-- restitution des resultats de prediction ;
-- logs techniques pour l'audit applicatif ;
-- analyse batch dans le portfolio Streamlit ;
-- selection d'un individu apres scoring global pour une lecture locale plus fine.
-
-Le systeme ne pretend pas constituer une plateforme BI complete, mais il met deja en place un cycle coherent de preparation, stockage, exploitation et visualisation des donnees autour du service de prediction.
+Le systeme ne pretend pas etre une plateforme BI complete, mais il met en place un cycle propre de preparation, stockage, exploitation et visualisation des donnees autour du service de prediction.

@@ -11,7 +11,7 @@ Le projet ne se limite pas a exposer un `predict()` :
 - les predictions sont tracees en base ;
 - le modele est package via MLflow ;
 - une interface Streamlit sert de portfolio et de support de demonstration ;
-- une CI et une CD automatisent les controles et le deploiement.
+- une CI et deux CD automatisent les controles et le deploiement.
 
 ## 2. Ce que fait l'application
 

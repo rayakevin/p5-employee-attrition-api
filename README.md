@@ -50,6 +50,12 @@ L'application permet de :
 7. La prediction est derivee du score et du seuil.
 8. Le resultat et le log technique sont enregistres en base.
 
+Schemas Mermaid integres :
+
+- vue d'ensemble et architecture de production : [`docs/architecture/overview.md`](docs/architecture/overview.md)
+- sequence technique d'une prediction : [`docs/api/README.md`](docs/api/README.md)
+- schema relationnel BDD : [`docs/db/README.md`](docs/db/README.md)
+
 ### 3.3 Flux d'explication locale
 
 1. L'API recoit le meme payload que pour une prediction.
@@ -489,7 +495,7 @@ Elle propose :
 
 ```powershell
 $env:P5_API_BASE_URL="http://127.0.0.1:8000"
-uv run streamlit run ui/streamlit_app.py
+uv run python -m streamlit run ui/streamlit_app.py
 ```
 
 ## 11. Tests
@@ -624,6 +630,11 @@ Valeurs à renseigner :
 - `HF_USERNAME` : votre nom de compte Hugging Face ;
 - `HF_SPACE_NAME` : le nom exact du Space API.
 
+Valeurs actuellement utilisees sur le projet :
+
+- DEV : `p5-employee-attrition-api-dev`
+- PROD : `p5-employee-attrition-api`
+
 Logique de branche recommandée :
 
 - `develop` deploie l'environnement `dev` ;
@@ -669,6 +680,11 @@ Procédure :
 4. ajouter ou mettre à jour `HF_USERNAME` ;
 5. ajouter `HF_PORTFOLIO_SPACE_NAME` dans `Variables`.
 
+Valeurs actuellement utilisees sur le projet :
+
+- DEV : `p5-portfolio-dev`
+- PROD : `p5-portfolio`
+
 Documentation de deploiement :
 
 - [`deploy/huggingface/README.md`](deploy/huggingface/README.md)
@@ -688,13 +704,19 @@ Important :
 - le Space API sert de preuve de deploiement distant ;
 - la reference technique pour le P5 reste l'environnement local avec PostgreSQL ;
 - les rebuilds HF peuvent etre longs, donc le debug principal reste local ;
-- la cible recommandee en production reste un PostgreSQL distant fourni via `P5_DATABASE_URL` ;
+- la cible actuellement deployee en ligne est un PostgreSQL distant fourni via `P5_DATABASE_URL` et heberge sur Supabase ;
 - SQLite ne doit plus etre considere comme la cible normale d'exploitation.
 
 Exemples de verification distante :
 
 ```powershell
 Invoke-RestMethod -Method Get -Uri "https://rayakevin-p5-employee-attrition-api.hf.space/health"
+```
+
+Portfolio public :
+
+```text
+https://rayakevin-p5-portfolio.hf.space
 ```
 
 ## 15. Protocole de mise à jour

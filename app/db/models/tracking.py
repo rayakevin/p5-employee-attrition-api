@@ -9,7 +9,7 @@ préparer une vraie traçabilité applicative.
 
 from datetime import datetime
 
-from sqlalchemy import DateTime, Float, ForeignKey, Integer, JSON, String, Text, func
+from sqlalchemy import DateTime, Float, ForeignKey, Index, Integer, JSON, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
@@ -65,6 +65,9 @@ class PredictionRequest(Base):
     """Stocke le payload brut reçu par l'API et son contexte d'appel."""
 
     __tablename__ = "prediction_requests"
+    __table_args__ = (
+        Index("ix_prediction_requests_requested_at", "requested_at"),
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     source_channel: Mapped[str] = mapped_column(String(50), default="api", nullable=False)
@@ -90,6 +93,9 @@ class PredictionResult(Base):
     """Stocke la sortie produite par le modèle pour une requête donnée."""
 
     __tablename__ = "prediction_results"
+    __table_args__ = (
+        Index("ix_prediction_results_created_at", "created_at"),
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     request_id: Mapped[int] = mapped_column(
@@ -117,6 +123,10 @@ class ApiAuditLog(Base):
     """Conserve les événements techniques associés à un appel API."""
 
     __tablename__ = "api_audit_logs"
+    __table_args__ = (
+        Index("ix_api_audit_logs_created_at", "created_at"),
+        Index("ix_api_audit_logs_status_code", "status_code"),
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     request_id: Mapped[int | None] = mapped_column(

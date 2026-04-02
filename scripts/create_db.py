@@ -30,6 +30,14 @@ def main() -> None:
     migrations versionnées avec Alembic.
     """
     Base.metadata.create_all(bind=engine)
+
+    # `create_all()` ne rattrape pas toujours les nouveaux index quand les
+    # tables existent deja. On les cree donc explicitement avec `checkfirst`
+    # pour rendre le script plus idempotent lors des evolutions du schema.
+    for table in Base.metadata.sorted_tables:
+        for index in table.indexes:
+            index.create(bind=engine, checkfirst=True)
+
     print("Database schema created successfully.")
 
 

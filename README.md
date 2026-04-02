@@ -2,26 +2,26 @@
 
 ## 1. Présentation
 
-Ce depot correspond a la mise en production du modele de prediction d'attrition construit au projet 4, puis industrialise dans le cadre du projet 5.
+Ce dépôt correspond à la mise en production du modèle de prédiction d'attrition construit au projet 4, puis industrialisé dans le cadre du projet 5.
 
-Le projet ne se limite pas a exposer un `predict()` :
+Le projet ne se limite pas à exposer un `predict()` :
 
-- une API FastAPI sert de point d'entree metier ;
+- une API FastAPI sert de point d'entree métier ;
 - un preprocessing reconstruit exactement les variables attendues par le modele final ;
-- les predictions sont tracees en base ;
-- le modele est package via MLflow ;
-- une interface Streamlit sert de portfolio et de support de demonstration ;
-- une CI et deux CD automatisent les controles et le deploiement.
+- les prédictions sont tracées en base ;
+- le modèle est packagé via MLflow ;
+- une interface Streamlit sert de portfolio et de support de démonstration ;
+- une CI et deux CD automatisent les contrôles et le déploiement.
 
 ## 2. Ce que fait l'application
 
 L'application permet de :
 
-- recevoir un profil employe en JSON ;
-- valider les entrees avec Pydantic ;
-- reconstruire les features du modele final ;
-- calculer une prediction, un score et une explication locale ;
-- enregistrer la requete et le resultat en base ;
+- recevoir un profil employé en JSON ;
+- valider les entrées avec Pydantic ;
+- reconstruire les features du modèle final ;
+- calculer une prédiction, un score et une explication locale ;
+- enregistrer la requête et le résultat en base ;
 - traiter un fichier CSV en batch depuis l'interface Streamlit.
 
 ## 3. Architecture
@@ -29,48 +29,48 @@ L'application permet de :
 ### 3.1 Vue d'ensemble
 
 - `app/api/` : endpoints FastAPI
-- `app/schemas/` : schemas Pydantic d'entree et de sortie
-- `app/services/` : orchestration metier
-- `app/ml/` : chargement du modele, preprocessing, scoring, explication locale
-- `app/db/` : SQLAlchemy, sessions et modeles ORM
-- `scripts/` : creation de base, seed, export MLflow
+- `app/schemas/` : schémas Pydantic d'entrée et de sortie
+- `app/services/` : orchestration métier
+- `app/ml/` : chargement du modèle, preprocessing, scoring, explication locale
+- `app/db/` : SQLAlchemy, sessions et modèles ORM
+- `scripts/` : création de base, seed, export MLflow
 - `ui/` : application Streamlit
-- `tests/` : tests unitaires et tests d'integration
+- `tests/` : tests unitaires et tests d'intégration
 - `artifacts/model/` : artefacts MLflow et metadata applicative
 - `docs/` : documentation de travail, architecture et exploitation
 
 ### 3.2 Flux de prédiction
 
-1. L'API recoit un payload JSON.
+1. L'API reçoit un payload JSON.
 2. Pydantic valide les types et la structure.
-3. Le service metier journalise la requete si la persistance est active.
-4. Le preprocessing reconstruit les variables du modele.
-5. Le modele MLflow est charge.
-6. Le score est calcule avec la methode declaree dans la metadata (`decision_function` pour le modele final).
-7. La prediction est derivee du score et du seuil.
-8. Le resultat et le log technique sont enregistres en base.
+3. Le service métier journalise la requête si la persistance est active.
+4. Le preprocessing reconstruit les variables du modèle.
+5. Le modèle MLflow est chargé.
+6. Le score est calculé avec la méthode déclarée dans la metadata (`decision_function` pour le modèle final).
+7. La prédiction est derivée du score et du seuil.
+8. Le résultat et le log technique sont enregistrés en base.
 
-Schemas Mermaid integres :
+Schemas Mermaid integrés :
 
 - vue d'ensemble et architecture de production : [`docs/architecture/overview.md`](docs/architecture/overview.md)
-- sequence technique d'une prediction : [`docs/api/README.md`](docs/api/README.md)
-- schema relationnel BDD : [`docs/db/README.md`](docs/db/README.md)
+- séquence technique d'une prédiction : [`docs/api/README.md`](docs/api/README.md)
+- schéma relationnel BDD : [`docs/db/README.md`](docs/db/README.md)
 
 ### 3.3 Flux d'explication locale
 
-1. L'API recoit le meme payload que pour une prediction.
-2. Le preprocessing reconstruit les features finales.
-3. Le module d'explication decompose le score du modele lineaire en contributions locales.
-4. L'API renvoie les facteurs qui augmentent ou diminuent le risque de depart.
+1. L'API reçoit le même payload que pour une prédiction.
+2. Le préprocessing reconstruit les features finales.
+3. Le module d'explication décompose le score du modele linéaire en contributions locales.
+4. L'API renvoie les facteurs qui augmentent ou diminuent le risque de départ.
 
 ### 3.4 Flux batch
 
 1. Streamlit charge un CSV de type `df_EDA.csv`.
-2. Le frontend decoupe les donnees en paquets.
-3. Chaque paquet est envoye a `POST /api/v1/predict/batch`.
-4. L'application affiche des indicateurs globaux, les profils les plus exposes et une analyse locale par employe.
+2. Le frontend découpe les données en paquets.
+3. Chaque paquet est envoyé à `POST /api/v1/predict/batch`.
+4. L'application affiche des indicateurs globaux, les profils les plus exposés et une analyse locale par employé.
 
-Documentation complementaire :
+Documentation complémentaire :
 
 - [`docs/architecture/overview.md`](docs/architecture/overview.md)
 - [`docs/api/README.md`](docs/api/README.md)
@@ -82,12 +82,12 @@ Documentation complementaire :
 
 ### FastAPI
 
-FastAPI a ete choisi pour :
+FastAPI a été choisi pour :
 
-- sa rapidite de mise en place ;
+- sa rapidité de mise en place ;
 - sa documentation OpenAPI native ;
 - la validation directe via Pydantic ;
-- sa bonne adequation a une API de prediction.
+- sa bonne adéquation à une API de prédiction.
 
 ### Pydantic
 
@@ -99,42 +99,42 @@ Pydantic garantit :
 
 ### MLflow
 
-MLflow sert a :
+MLflow sert à :
 
-- exporter le modele dans un format standard ;
+- exporter le modèle dans un format standard ;
 - conserver une metadata applicative ;
-- dissocier l'entrainement et le runtime de prediction.
+- dissocier l'entrainement et le runtime de prédiction.
 
 ### SQLAlchemy et PostgreSQL
 
-Cette pile a ete retenue pour :
+Cette pile a été retenue pour :
 
-- tracer les predictions et les erreurs ;
-- stocker les donnees source ;
-- garder une couche de persistance explicite, testable et evolutive.
+- tracer les prédictions et les erreurs ;
+- stocker les données source ;
+- garder une couche de persistance explicite, testable et évolutive.
 
 ### Streamlit
 
-Streamlit est utilise pour :
+Streamlit est utilisé pour :
 
-- exposer une interface portfolio rapide a iterer ;
-- demontrer le projet sans passer uniquement par Swagger ou PowerShell ;
-- fournir une vue unitaire et batch du modele.
+- exposer une interface portfolio rapide à iterer ;
+- démontrer le projet sans passer uniquement par Swagger ou PowerShell ;
+- fournir une vue unitaire et en batch du modèle.
 
 ### Docker
 
 Docker permet :
 
-- de figer l'environnement d'execution ;
-- de reproduire localement une stack proche du deploiement ;
-- de deployer sur Hugging Face Spaces en mode Docker.
+- de figer l'environnement d'exécution ;
+- de reproduire localement une stack proche du déploiement ;
+- de déployer sur Hugging Face Spaces en mode Docker.
 
 ### GitHub Actions
 
-GitHub Actions est utilise pour :
+GitHub Actions est utilisé pour :
 
 - valider les tests automatiquement ;
-- separer CI et CD ;
+- séparer CI et CD ;
 - pousser les Spaces Hugging Face depuis le repository.
 
 ## 5. Prérequis
@@ -180,12 +180,12 @@ Variables importantes :
 ```env
 P5_ENVIRONMENT=development
 P5_DEBUG=true
-P5_API_KEY=change-me-local-dev-key
+P5_API_KEY=à attribuer
 P5_API_BASE_URL=http://127.0.0.1:8000
 
 POSTGRES_DB=p5_attrition
 POSTGRES_USER=postgres
-POSTGRES_PASSWORD=change-me-postgres-password
+POSTGRES_PASSWORD=à attribuer
 ```
 
 Chaîne de connexion locale recommandée pour l'API :
@@ -208,7 +208,7 @@ Règles importantes :
 docker compose up -d postgres
 ```
 
-Le projet utilise `5433` pour eviter les collisions avec une installation PostgreSQL locale deja presente sur `5432`.
+Le projet utilise `5433` pour éviter les collisions avec une installation PostgreSQL locale déjà présente sur `5432`. A adapter à la machine sur laquelle l'installation est faite.
 
 ### 7.2 Créer le schéma et charger les données source
 
@@ -221,10 +221,10 @@ uv run python scripts/seed_data.py
 
 Explication :
 
-- `scripts/create_db.py` cree les tables SQLAlchemy ;
-- `scripts/seed_data.py` fusionne les trois fichiers CSV metier et recharge `employees_source`.
+- `scripts/create_db.py` crée les tables SQLAlchemy ;
+- `scripts/seed_data.py` fusionne les trois fichiers CSV métier et recharge `employees_source`.
 
-Un script de `seed` est un script qui peuple une base avec des donnees initiales utiles a l'application, aux demonstrations ou aux tests.
+Un script de `seed` est un script qui peuple une base avec des donnees initiales utiles à l'application, aux démonstrations ou aux tests.
 
 ### 7.3 Démarrer l'API
 
@@ -257,7 +257,7 @@ Reponse attendue :
 - `POST /api/v1/explain`
 - `POST /api/v1/predict/batch`
 
-Les routes metier `POST` sont protegees par une cle d'API transmise dans l'en-tete `X-API-Key`.
+Les routes métier `POST` sont protégées par une cle d'API transmise dans l'en-tete `X-API-Key`.
 
 ### 8.2 Valeurs conseillées pour les champs catégoriels
 
@@ -360,10 +360,10 @@ Invoke-RestMethod `
   -Body $payload
 ```
 
-La reponse contient :
+La réponse contient :
 
 - la `base_value` ;
-- les sommes positives et negatives ;
+- les sommes positives et négatives ;
 - les facteurs principaux qui augmentent le risque ;
 - les facteurs principaux qui diminuent le risque.
 
@@ -489,7 +489,7 @@ Elle propose :
 - une analyse unitaire ;
 - une explication locale visuelle ;
 - une analyse batch sur CSV ;
-- une selection employe par employe apres scoring global.
+- une sélection employé par employé après scoring global.
 
 ### Lancer Streamlit en local
 
@@ -509,7 +509,7 @@ uv run pytest -q
 ### 11.2 Ce qui est couvert
 
 - endpoints API ;
-- validation des schemas ;
+- validation des schémas ;
 - logique de score ;
 - explication locale ;
 - preprocessing ;
@@ -581,11 +581,11 @@ La CI :
 
 - installe les dependances ;
 - demarre PostgreSQL ;
-- cree le schema ;
+- crée le schema ;
 - charge les donnees source ;
 - execute les tests.
 
-Elle ne deploie rien directement : les workflows CD sont distincts et ne se declenchent qu'apres une CI terminee avec succes sur `develop` ou `main`.
+Elle ne deploie rien directement : les workflows CD sont distincts et ne se déclenchent qu'apres une CI terminée avec succes sur `develop` ou `main`.
 
 Variables CI imposees :
 
@@ -692,8 +692,8 @@ Documentation de deploiement :
 
 Declenchement :
 
-- `cd-portfolio.yml` se declenche automatiquement via `workflow_run` apres une CI en succes sur `develop` ou `main` ;
-- `workflow_dispatch` reste disponible pour un redeploiement manuel du portfolio.
+- `cd-portfolio.yml` se déclenche automatiquement via `workflow_run` après une CI en succés sur `develop` ou `main` ;
+- `workflow_dispatch` reste disponible pour un redéploiement manuel du portfolio.
 
 ## 14. Déploiement distant
 
@@ -701,13 +701,12 @@ Le projet utilise Hugging Face Spaces en mode Docker.
 
 Important :
 
-- le Space API sert de preuve de deploiement distant ;
-- la reference technique pour le P5 reste l'environnement local avec PostgreSQL ;
-- les rebuilds HF peuvent etre longs, donc le debug principal reste local ;
-- la cible actuellement deployee en ligne est un PostgreSQL distant fourni via `P5_DATABASE_URL` et heberge sur Supabase ;
-- SQLite ne doit plus etre considere comme la cible normale d'exploitation.
+- le Space API sert de preuve de déploiement distant ;
+- la référence technique pour le P5 reste l'environnement local avec PostgreSQL ;
+- les rebuilds HF peuvent être longs, donc le debug principal reste local ;
+- la cîble actuellement déployée en ligne est un PostgreSQL distant fourni via `P5_DATABASE_URL` et hébergé sur Supabase.
 
-Exemples de verification distante :
+Exemples de vérification distante :
 
 ```powershell
 Invoke-RestMethod -Method Get -Uri "https://rayakevin-p5-employee-attrition-api.hf.space/health"
@@ -721,26 +720,26 @@ https://rayakevin-p5-portfolio.hf.space
 
 ## 15. Protocole de mise à jour
 
-Le protocole detaille est documente dans [`docs/maintenance_protocol.md`](docs/maintenance_protocol.md).
+Le protocole détaillé est documenté dans [`docs/maintenance_protocol.md`](docs/maintenance_protocol.md).
 
 Resume pratique :
 
-1. mettre a jour le code et les dependances ;
+1. mettre à jour le code et les dépendances ;
 2. relancer `uv run pytest -q` ;
-3. verifier la prediction locale ;
-4. verifier la base et la tracabilite ;
-5. verifier les builds Docker ;
-6. verifier les deploiements distants ;
-7. mettre a jour la documentation si le comportement change.
+3. vérifier la prédiction locale ;
+4. vérifier la base et la traçabilite ;
+5. vérifier les builds Docker ;
+6. vérifier les déploiements distants ;
+7. mettre à jour la documentation si le comportement change.
 
 ## 16. Conventions Git
 
 ### 16.1 Branches
 
-Le projet suit une logique simple inspiree de GitFlow :
+Le projet suit une logique simple inspirée de GitFlow :
 
-- `main` : branche de reference pour la production ;
-- `develop` : branche d'integration continue pour l'environnement de developpement ;
+- `main` : branche de référence pour la production ;
+- `develop` : branche d'integration continue pour l'environnement de développement ;
 - `feature/<sujet>` : nouvelle fonctionnalite ;
 - `fix/<sujet>` : correction de bug ;
 - `docs/<sujet>` : documentation ;
@@ -749,13 +748,13 @@ Le projet suit une logique simple inspiree de GitFlow :
 
 Flux recommande :
 
-1. developper sur `feature/*` ;
-2. merger dans `develop` pour valider l'environnement de developpement ;
+1. développer sur `feature/*` ;
+2. merger dans `develop` pour valider l'environnement de développement ;
 3. merger `develop` dans `main` pour publier en production.
 
 ### 16.2 Commits
 
-- `feat:` : nouvelle fonctionnalite
+- `feat:` : nouvelle fonctionnalité
 - `fix:` : correction
 - `docs:` : documentation
 - `chore:` : maintenance
@@ -821,10 +820,10 @@ A date, le projet dispose :
 
 ## 20. Limites connues
 
-- les rebuilds Hugging Face Spaces peuvent etre tres longs ;
-- PostgreSQL local n'est pas disponible dans les Spaces ;
+- les rebuilds Hugging Face Spaces peuvent être assez longs selon la charge sur serveur côté HF;
+- PostgreSQL local n'est pas disponible dans les Spaces - PostgreSQL distant hébergé sur supabase à la place ;
 - la cible distante sert surtout de vitrine et de preuve de déploiement.
 
 ## 21. Contexte
 
-Projet realise dans le cadre du Projet 5 OpenClassrooms, avec l'objectif de transformer un modele de machine learning en application exploitable, testable, tracable et documentee.
+Projet réalisé dans le cadre du Projet 5 OpenClassrooms, avec l'objectif de transformer un modèle de machine learning en application exploitable, testable, traçable et documentée.

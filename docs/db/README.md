@@ -1,151 +1,162 @@
-# Documentation de la base de données
+# Documentation de la base de donnees
 
-## 1. Rôle de la base dans le projet
+## 1. Role de la base dans le projet
 
-La base de données remplit deux fonctions distinctes :
+La base de donnees remplit deux fonctions distinctes :
 
-- stocker les données source fusionnées du projet dans `employees_source` ;
-- tracer le fonctionnement applicatif de l'API via les tables de requêtes, de résultats et de logs techniques.
+- stocker les donnees source fusionnees du projet dans `employees_source` ;
+- tracer le fonctionnement applicatif de l'API via les tables de requetes, de resultats et de logs techniques.
 
-Dans le cadre du P5, la base n'est donc pas un simple support de persistance : elle permet aussi d'auditer les appels au modèle et de démontrer l'intégration d'un moteur ML dans un flux applicatif complet.
+Dans le cadre du P5, la base n'est donc pas un simple support de persistance : elle permet aussi d'auditer les appels au modele et de demontrer l'integration d'un moteur ML dans un flux applicatif complet.
 
-## 2. Technologies utilisées
+## 2. Technologies utilisees
 
 Le projet utilise :
 
 - SQLAlchemy comme couche ORM ;
-- PostgreSQL comme base de référence en local et comme cible recommandée en production ;
-- SQLite seulement comme fallback de secours pour un runtime de démonstration non configuré avec `P5_DATABASE_URL`.
+- PostgreSQL comme base de reference en local ;
+- PostgreSQL distant via Supabase comme cible deployee pour les Spaces Hugging Face ;
+- SQLite seulement comme fallback de secours si aucun `P5_DATABASE_URL` n'est fourni.
 
-Les modèles ORM se trouvent dans :
+Les modeles ORM se trouvent dans :
 
 - [`app/db/models/tracking.py`](../../app/db/models/tracking.py)
 
-L'initialisation du schéma est réalisée par :
+L'initialisation du schema est realisee par :
 
 - [`scripts/create_db.py`](../../scripts/create_db.py)
 
-Le chargement des données sources est réalisé par :
+Le chargement des donnees sources est realise par :
 
 - [`scripts/seed_data.py`](../../scripts/seed_data.py)
 
-## 3. Vue d'ensemble du schéma
+## 3. Schema logique
 
-Le schéma logique du projet peut être résumé ainsi :
-
-```text
-employees_source
-
-prediction_requests 1 ----- 1 prediction_results
-prediction_requests 1 ----- N api_audit_logs
-```
-
-## 3.1 Schéma UML simplifié
+Le schema relationnel du projet est le suivant :
 
 ```mermaid
-classDiagram
-direction LR
+erDiagram
+    EMPLOYEES_SOURCE {
+        INT id_employee PK
+        INT age "NOT NULL"
+        STRING genre "NOT NULL"
+        FLOAT revenu_mensuel "NOT NULL"
+        STRING statut_marital "NOT NULL"
+        STRING departement "NOT NULL"
+        STRING poste "NOT NULL"
+        INT nombre_experiences_precedentes "NOT NULL"
+        FLOAT nombre_heures_travailless "NOT NULL"
+        FLOAT annee_experience_totale "NOT NULL"
+        FLOAT annees_dans_l_entreprise "NOT NULL"
+        FLOAT annees_dans_le_poste_actuel "NOT NULL"
+        INT satisfaction_employee_environnement "NOT NULL"
+        FLOAT note_evaluation_precedente "NOT NULL"
+        INT niveau_hierarchique_poste "NOT NULL"
+        INT satisfaction_employee_nature_travail "NOT NULL"
+        INT satisfaction_employee_equipe "NOT NULL"
+        INT satisfaction_employee_equilibre_pro_perso "NOT NULL"
+        STRING eval_number "NOT NULL"
+        FLOAT note_evaluation_actuelle "NOT NULL"
+        BOOLEAN heure_supplementaires "NOT NULL"
+        FLOAT augementation_salaire_precedente "NOT NULL"
+        BOOLEAN a_quitte_l_entreprise "NOT NULL"
+        INT nombre_participation_pee "NOT NULL"
+        INT nb_formations_suivies "NOT NULL"
+        INT nombre_employee_sous_responsabilite "NOT NULL"
+        INT code_sondage "NOT NULL"
+        FLOAT distance_domicile_travail "NOT NULL"
+        INT niveau_education "NOT NULL"
+        STRING domaine_etude "NOT NULL"
+        BOOLEAN ayant_enfants "NOT NULL"
+        STRING frequence_deplacement "NOT NULL"
+        FLOAT annees_depuis_la_derniere_promotion "NOT NULL"
+        FLOAT annes_sous_responsable_actuel "NOT NULL"
+        DATETIME loaded_at "NOT NULL, DEFAULT now()"
+    }
 
-class EmployeeSource {
-  +id_employee: int
-  +age: int
-  +genre: str
-  +revenu_mensuel: float
-  +departement: str
-  +poste: str
-  +loaded_at: datetime
-}
+    PREDICTION_REQUESTS {
+        INT id PK
+        STRING source_channel "NOT NULL, DEFAULT api"
+        JSON payload_json "NOT NULL"
+        DATETIME requested_at "NOT NULL, DEFAULT now()"
+    }
 
-class PredictionRequest {
-  +id: int
-  +source_channel: str
-  +payload_json: json
-  +requested_at: datetime
-}
+    PREDICTION_RESULTS {
+        INT id PK
+        INT request_id FK "NOT NULL, UNIQUE"
+        INT prediction "NOT NULL"
+        FLOAT score "NOT NULL"
+        FLOAT threshold "NOT NULL"
+        STRING model_version "NOT NULL"
+        STRING model_name "NOT NULL"
+        DATETIME created_at "NOT NULL, DEFAULT now()"
+    }
 
-class PredictionResult {
-  +id: int
-  +request_id: int
-  +prediction: int
-  +score: float
-  +threshold: float
-  +model_name: str
-  +model_version: str
-  +created_at: datetime
-}
+    API_AUDIT_LOGS {
+        INT id PK
+        INT request_id FK "NULLABLE"
+        STRING endpoint "NOT NULL"
+        INT status_code "NOT NULL"
+        TEXT error_message "NULLABLE"
+        DATETIME created_at "NOT NULL, DEFAULT now()"
+    }
 
-class ApiAuditLog {
-  +id: int
-  +request_id: int
-  +endpoint: str
-  +status_code: int
-  +error_message: str
-  +created_at: datetime
-}
-
-PredictionRequest "1" --> "1" PredictionResult : produit
-PredictionRequest "1" --> "*" ApiAuditLog : genere
+    PREDICTION_REQUESTS ||--|| PREDICTION_RESULTS : "1 request -> 1 result"
+    PREDICTION_REQUESTS ||--o{ API_AUDIT_LOGS : "1 request -> 0..n logs"
 ```
 
-Interprétation :
+Legende :
 
-- `employees_source` contient les données RH consolidées et ne dépend pas des tables de traçabilité ;
-- `prediction_requests` représente chaque appel unitaire enregistré par l'API ;
-- `prediction_results` stocke la sortie du modèle pour une requête donnée ;
-- `api_audit_logs` conserve les événements techniques associés aux appels API.
+- `PK` : cle primaire ;
+- `FK` : cle etrangere ;
+- `UNIQUE` : contrainte d'unicite ;
+- `NOT NULL` : champ obligatoire ;
+- `DEFAULT now()` : horodatage automatique.
 
-## 4. Description détaillée des tables
+## 4. Description des tables
 
 ### 4.1 `employees_source`
 
-Cette table stocke une vue fusionnée des trois jeux de données bruts du projet.
+Cette table stocke une vue fusionnee des trois jeux de donnees bruts du projet.
 
-Clé principale :
+Cle principale :
 
 - `id_employee`
 
-Exemples de colonnes :
+Role :
 
-- variables d'identité et de contexte : `age`, `genre`, `statut_marital`, `departement`, `poste` ;
-- variables RH et performance : `revenu_mensuel`, `niveau_hierarchique_poste`, `annee_experience_totale` ;
-- variables de satisfaction : `satisfaction_employee_environnement`, `satisfaction_employee_equipe` ;
-- variables de mobilité et d'historique : `frequence_deplacement`, `annees_depuis_la_derniere_promotion` ;
-- métadonnée de chargement : `loaded_at`.
-
-Rôle :
-
-- servir de base de démonstration et de vérification ;
-- fournir un jeu de données consolidé pour les scripts et les contrôles SQL ;
-- matérialiser l'intégration des données métier dans l'application.
+- servir de base de demonstration et de verification ;
+- fournir un jeu de donnees consolide pour les scripts et les controles SQL ;
+- materialiser l'integration des donnees metier dans l'application.
 
 ### 4.2 `prediction_requests`
 
-Cette table stocke la requête brute reçue par l'API avant scoring.
+Cette table stocke la requete brute recue par l'API avant scoring.
 
-Clé principale :
+Cle principale :
 
 - `id`
 
 Colonnes principales :
 
-- `source_channel` : canal d'origine, par défaut `api` ;
-- `payload_json` : payload brut reçu ;
-- `requested_at` : horodatage de la requête.
+- `source_channel` : canal d'origine, par defaut `api` ;
+- `payload_json` : payload brut recu ;
+- `requested_at` : horodatage de la requete.
 
-Rôle :
+Role :
 
-- conserver exactement ce qui a été demandé au service ;
-- servir de point d'ancrage relationnel pour les résultats et les logs.
+- conserver exactement ce qui a ete demande au service ;
+- servir de point d'ancrage relationnel pour les resultats et les logs.
 
 ### 4.3 `prediction_results`
 
-Cette table stocke la sortie du modèle pour une requête unitaire.
+Cette table stocke la sortie du modele pour une requete unitaire.
 
-Clé principale :
+Cle principale :
 
 - `id`
 
-Clé étrangère :
+Cle etrangere :
 
 - `request_id` -> `prediction_requests.id`
 
@@ -158,21 +169,21 @@ Colonnes principales :
 - `model_name`
 - `created_at`
 
-Rôle :
+Role :
 
-- tracer le résultat métier effectivement renvoyé ;
-- relier une entrée API à la sortie du modèle ;
-- conserver la version du modèle utilisée lors du scoring.
+- tracer le resultat metier effectivement renvoye ;
+- relier une entree API a la sortie du modele ;
+- conserver la version du modele utilisee lors du scoring.
 
 ### 4.4 `api_audit_logs`
 
-Cette table stocke les événements techniques liés à l'exécution de l'API.
+Cette table stocke les evenements techniques lies a l'execution de l'API.
 
-Clé principale :
+Cle principale :
 
 - `id`
 
-Clé étrangère optionnelle :
+Cle etrangere optionnelle :
 
 - `request_id` -> `prediction_requests.id`
 
@@ -183,13 +194,13 @@ Colonnes principales :
 - `error_message`
 - `created_at`
 
-Rôle :
+Role :
 
-- tracer les appels même en cas d'échec partiel ;
-- conserver les erreurs techniques éventuelles ;
-- séparer l'audit technique de la donnée métier.
+- tracer les appels meme en cas d'echec partiel ;
+- conserver les erreurs techniques eventuelles ;
+- separer l'audit technique de la donnee metier.
 
-## 5. Relations entre les tables
+## 5. Relations et contraintes
 
 ### `prediction_requests` -> `prediction_results`
 
@@ -199,8 +210,8 @@ Relation :
 
 Justification :
 
-- une requête unitaire persistée ne doit produire qu'un seul résultat métier final ;
-- cette contrainte est matérialisée par `request_id` avec unicité dans `prediction_results`.
+- une requete unitaire persistée ne doit produire qu'un seul resultat metier final ;
+- cette contrainte est materialisee par `request_id` avec unicite dans `prediction_results`.
 
 ### `prediction_requests` -> `api_audit_logs`
 
@@ -210,8 +221,8 @@ Relation :
 
 Justification :
 
-- une même requête peut donner lieu à plusieurs événements techniques au cours de sa vie ;
-- la table de logs est volontairement plus souple que la table métier.
+- une meme requete peut donner lieu a plusieurs evenements techniques au cours de sa vie ;
+- la table de logs est volontairement plus souple que la table metier.
 
 ### `employees_source`
 
@@ -221,76 +232,49 @@ Relation :
 
 Justification :
 
-- cette table représente les données source consolidées ;
-- elle n'est pas nécessaire au runtime du modèle dans les déploiements distants ;
-- elle reste utile en local pour l'exploitation, le contrôle SQL et les démonstrations.
+- cette table represente les donnees source consolidees ;
+- elle n'est pas necessaire au runtime du modele dans les deploiements distants ;
+- elle reste utile en local pour l'exploitation, le controle SQL et les demonstrations.
 
-## 6. Contraintes et règles de cohérence
+### Contraintes explicites du schema
 
-Le schéma applique plusieurs contraintes simples mais importantes.
+Le schema materialise deja :
 
-### Clés primaires
+- les cles primaires ;
+- les cles etrangeres ;
+- l'unicite du lien requete -> resultat ;
+- les horodatages par defaut ;
+- les non-nullites utiles au flux applicatif ;
+- des index explicites sur :
+  - `prediction_requests.requested_at`
+  - `prediction_results.created_at`
+  - `api_audit_logs.created_at`
+  - `api_audit_logs.status_code`
 
-- chaque table possède une clé primaire entière ;
-- `employees_source` utilise `id_employee` comme identifiant métier principal.
+Montees en gamme naturelles :
 
-### Clés étrangères
+- quelques `CHECK` constraints metier ;
+- des migrations versionnees avec Alembic.
 
-- `prediction_results.request_id` référence `prediction_requests.id` ;
-- `api_audit_logs.request_id` référence `prediction_requests.id`.
+## 6. Creation et alimentation de la base
 
-### Unicité
+### Creation du schema
 
-- `prediction_results.request_id` est unique, ce qui force une relation `1 -> 1` entre requête et résultat.
-
-### Non-nullité
-
-Les colonnes essentielles au fonctionnement sont déclarées `nullable=False`, notamment :
-
-- les informations métier nécessaires au scoring dans `employees_source` ;
-- le payload brut dans `prediction_requests` ;
-- les champs structurants du résultat dans `prediction_results` ;
-- l'endpoint et le code HTTP dans `api_audit_logs`.
-
-### Contraintes actuellement explicites
-
-Le projet matérialise déjà :
-
-- les clés primaires ;
-- les clés étrangères ;
-- l'unicité du lien requête -> résultat ;
-- les horodatages par défaut ;
-- les non-nullités utiles au flux applicatif.
-
-Une montée en gamme possible serait d'ajouter plus tard :
-
-- des index complémentaires sur les tables de traçabilité ;
-- quelques `CHECK` constraints métier ;
-- des migrations versionnées avec Alembic.
-
-### Horodatage
-
-Les tables principales disposent d'un horodatage par défaut (`server_default=func.now()`), ce qui facilite :
-
-- l'audit ;
-- la reconstitution d'une chronologie ;
-- le contrôle du bon fonctionnement du service.
-
-## 7. Création et alimentation de la base
-
-### Création du schéma
-
-Le schéma est créé via :
+Le schema est cree via :
 
 ```powershell
 uv run python scripts/create_db.py
 ```
 
-Le script s'appuie sur `Base.metadata.create_all(...)` pour matérialiser toutes les tables ORM.
+Le script s'appuie sur `Base.metadata.create_all(...)` pour materialiser toutes les tables ORM.
 
-### Chargement des données source
+Il cree aussi explicitement les index declares dans les modeles avec
+`checkfirst=True`, ce qui permet de rattraper un ajout d'index sur une base
+deja existante sans migration complete.
 
-Les données source sont chargées via :
+### Chargement des donnees source
+
+Les donnees source sont chargees via :
 
 ```powershell
 uv run python scripts/seed_data.py
@@ -298,132 +282,67 @@ uv run python scripts/seed_data.py
 
 Le script :
 
-- lit les fichiers présents dans `data/raw/` ;
-- fusionne les extraits métier ;
+- lit les fichiers presents dans `data/raw/` ;
+- fusionne les extraits metier ;
 - vide puis recharge `employees_source`.
 
-## 8. Gestion du volume des données
-
-Le projet ne vise pas un très gros volume au sens industriel, mais il met déjà en place des choix cohérents pour gérer efficacement la donnée traitée.
-
-### 8.1 Séparation entre données source et traçabilité
-
-Les données source (`employees_source`) sont séparées des données de traçabilité (`prediction_requests`, `prediction_results`, `api_audit_logs`).
-
-Avantage :
-
-- on évite de mélanger les données RH de référence avec les appels techniques du service ;
-- les usages SQL restent plus lisibles ;
-- les purges futures peuvent être ciblées table par table.
-
-### 8.2 Pas de persistance massive pour le batch
-
-La route `/api/v1/predict/batch` ne persiste pas les traitements en base.
-
-Avantage :
-
-- on évite d'exploser artificiellement le volume de logs avec des traitements de démonstration ou d'exploration ;
-- la base reste concentrée sur la traçabilité utile des appels unitaires métier.
-
-### 8.3 Payload brut stocké en JSON
-
-Le choix du champ `payload_json` dans `prediction_requests` permet :
-
-- de conserver exactement l'entrée reçue ;
-- d'éviter de dupliquer toute la structure métier dans une table relationnelle dédiée ;
-- de garder une traçabilité souple sans multiplier les colonnes techniques.
-
-### 8.4 Schéma simple et lisible
-
-Le schéma reste volontairement compact :
-
-- peu de tables ;
-- relations explicites ;
-- absence de jointures complexes inutiles ;
-- création rapide du schéma pour les tests et les démonstrations.
-
-Ce choix est adapté au périmètre du P5 et facilite :
-
-- la maintenance ;
-- les tests automatisés ;
-- le redémarrage rapide d'un environnement local.
-
-### 8.5 Perspectives si le volume augmentait
-
-Si le projet devait évoluer vers un volume plus important, les pistes naturelles seraient :
-
-- indexation complémentaire selon les besoins de consultation ;
-- politique d'archivage ou purge des logs techniques ;
-- migrations versionnées avec Alembic ;
-- séparation plus nette entre base opérationnelle et base analytique.
-
-## 9. Local vs Hugging Face Spaces
+## 7. Local vs deploiement distant
 
 ### Local
 
-- PostgreSQL est la base recommandée ;
-- elle permet une démonstration complète du schéma, du seed et de la traçabilité ;
-- elle constitue la référence technique du projet.
+- PostgreSQL est la base recommandee ;
+- elle permet une demonstration complete du schema, du seed et de la tracabilite ;
+- elle constitue la reference technique du projet.
 
 ### Hugging Face Spaces
 
-- la cible recommandée est un PostgreSQL distant fourni via `P5_DATABASE_URL` ;
-- SQLite ne reste qu'un filet de sécurité éventuel pour un runtime de démonstration non configuré ;
-- dans une configuration de production propre, le Space API doit recevoir sa chaîne PostgreSQL et ne pas s'appuyer sur SQLite.
+- la cible deployee est PostgreSQL via Supabase ;
+- le Space API doit recevoir `P5_DATABASE_URL` et `P5_API_KEY` ;
+- le portfolio n'accede jamais directement a la base.
 
 Important :
 
-- le preprocessing du modèle ne dépend plus de la base au runtime ;
-- les références nécessaires au feature engineering sont embarquées dans `artifacts/model/preprocessing_reference.json`.
+- le preprocessing du modele ne depend plus de la base au runtime ;
+- les references necessaires au feature engineering sont embarquees dans `artifacts/model/preprocessing_reference.json`.
 
-## 10. Fichiers utiles
+## 8. Gestion du volume
 
-- Modèles ORM : [`../../app/db/models/tracking.py`](../../app/db/models/tracking.py)
+Le projet ne vise pas un tres gros volume au sens industriel, mais plusieurs choix sont deja coherents :
+
+- separation entre donnees source et tables de tracabilite ;
+- absence de persistance massive pour `/predict/batch` ;
+- stockage du payload brut en JSON dans `prediction_requests` ;
+- schema compact et relisibile pour les tests et la demonstration ;
+- indexation explicite des horodatages et du `status_code` pour accelerer les lectures d'audit et les requetes recentes.
+
+Regle de retention retenue pour le projet :
+
+- les logs techniques de `api_audit_logs` ont vocation a etre conserves 90 jours glissants, puis archives ou purges par une tache de maintenance planifiee si le volume augmente.
+
+Si le volume augmentait, les pistes naturelles seraient :
+
+- retention/purge des logs techniques ;
+- migrations versionnees ;
+- separation plus nette entre base operationnelle et base analytique.
+
+## 9. Fichiers utiles
+
+- Modeles ORM : [`../../app/db/models/tracking.py`](../../app/db/models/tracking.py)
 - Session SQLAlchemy : [`../../app/db/session.py`](../../app/db/session.py)
-- Création du schéma : [`../../scripts/create_db.py`](../../scripts/create_db.py)
+- Creation du schema : [`../../scripts/create_db.py`](../../scripts/create_db.py)
 - Seed : [`../../scripts/seed_data.py`](../../scripts/seed_data.py)
 - Documentation architecture : [`../architecture/overview.md`](../architecture/overview.md)
 
-## 11. Positionnement par rapport au besoin analytique
+## 10. Positionnement par rapport au besoin analytique
 
-À ce stade, le projet formalise bien les processus de traitement et de stockage des données nécessaires au périmètre du P5.
+Le projet couvre un premier niveau solide de besoin analytique :
 
-Ce qui est effectivement couvert :
-
-- ingestion et fusion des données brutes via le script de seed ;
-- stockage structuré des données source dans `employees_source` ;
-- traçabilité des appels unitaires au modèle ;
-- restitution des résultats de prédiction ;
+- ingestion et fusion des donnees brutes ;
+- stockage structure des donnees source dans `employees_source` ;
+- tracabilite des appels unitaires au modele ;
+- restitution des resultats de prediction ;
 - logs techniques pour l'audit applicatif ;
 - analyse batch dans le portfolio Streamlit ;
-- sélection d'un individu après scoring global pour une lecture locale plus fine.
+- selection d'un individu apres scoring global pour une lecture locale plus fine.
 
-À notre sens, cet ensemble répond au besoin du projet P5, car il ne se limite pas à exposer un modèle : il met en place un cycle cohérent de préparation, stockage, exploitation et visualisation des données autour du service de prédiction.
-
-Il est donc raisonnable d'affirmer que le projet couvre un premier niveau de besoin analytique, au sens où il permet :
-
-- d'explorer un jeu de données d'employés ;
-- de scorer un ensemble d'individus ;
-- de visualiser les résultats globaux ;
-- d'analyser ensuite un cas particulier plus en détail.
-
-## 12. Limites actuelles et pistes d'amélioration
-
-Le projet ne prétend toutefois pas constituer un système analytique complet au sens d'une plateforme BI industrialisée.
-
-Limites actuelles :
-
-- absence d'historisation analytique avancée des batchs ;
-- absence de table d'agrégats métier dédiée ;
-- absence de tableaux de bord décisionnels multi-indicateurs sur longue période ;
-- absence de stratégie de volumétrie avancée au-delà du périmètre pédagogique ;
-- dépendance à une base distante à configurer explicitement en production.
-
-Pistes d'amélioration si le projet devait être prolongé :
-
-- persister les batchs dans une table dédiée avec métadonnées d'exécution ;
-- historiser les résultats par campagne ou par date d'analyse ;
-- ajouter des vues ou tables d'agrégats pour des KPI RH ;
-- brancher une vraie base distante durable pour les déploiements cloud ;
-- connecter un outil de BI ou enrichir le portfolio avec des indicateurs de synthèse plus décisionnels ;
-- mettre en place des migrations versionnées et une stratégie de rétention des logs.
+Le systeme ne pretend pas constituer une plateforme BI complete, mais il met deja en place un cycle coherent de preparation, stockage, exploitation et visualisation des donnees autour du service de prediction.
